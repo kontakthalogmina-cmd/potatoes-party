@@ -19,7 +19,7 @@ namespace PotatoParty.EditorTools
         const string ScenePath = "Assets/Scenes/PotatoesParty.unity";
         const string SettingsDir = "Assets/Settings";
         const string ResourcesDir = "Assets/Resources/PotatoParty";
-        const string DoneKey = "PotatoParty.SetupDone.v4";
+        const string DoneKey = "PotatoParty.SetupDone.v5";
 
         static ProjectSetup()
         {
@@ -169,6 +169,25 @@ namespace PotatoParty.EditorTools
         {
             MakeMaterial(ResourcesDir + "/BaseLit.mat", "Universal Render Pipeline/Lit");
             MakeMaterial(ResourcesDir + "/BaseStandard.mat", "Standard");
+            EnsureHeroMaterial();
+        }
+
+        /// <summary>
+        /// Materiał wzorcowy shadera bohatera w Resources: dzięki niemu shader trafia do buildu
+        /// (Shader.Find w buildzie widzi tylko shadery, do których coś się odwołuje).
+        /// </summary>
+        static void EnsureHeroMaterial()
+        {
+            string path = ResourcesDir + "/PotatoHero.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
+            var shader = Shader.Find("PotatoParty/PotatoHero");
+            if (shader == null)
+            {
+                Debug.LogWarning("[Potatoes Party] Nie znaleziono shadera PotatoParty/PotatoHero – ziemniaki użyją URP Lit.");
+                return;
+            }
+            AssetDatabase.CreateAsset(new Material(shader) { name = "PotatoHero" }, path);
+            Debug.Log("[Potatoes Party] Utworzono materiał shadera bohatera ziemniaka.");
         }
 
         static void MakeMaterial(string path, string shaderName)

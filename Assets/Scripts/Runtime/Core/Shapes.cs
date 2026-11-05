@@ -4,6 +4,9 @@ using UnityEngine.Rendering;
 
 namespace PotatoParty
 {
+    /// <summary>Część ciała ziemniaka – wybiera ustawienia shadera bohatera.</summary>
+    public enum PotatoPart { Body, Belly, Face, Limb, Spot }
+
     /// <summary>
     /// Cała grafika gry jest budowana z prostych brył w kodzie, dlatego projekt nie potrzebuje
     /// żadnych modeli ani tekstur. Tu tworzymy bryły i materiały (URP Lit albo Standard).
@@ -53,6 +56,80 @@ namespace PotatoParty
                 m.EnableKeyword("_EMISSION");
                 m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
                 m.SetColor("_EmissionColor", c * emission);
+            }
+            cache[key] = m;
+            return m;
+        }
+
+        // ---------------- Shader Bohatera Ziemniaka ("Aksamitna Bulwa") ----------------
+
+        static Material heroBase;
+        static bool heroTried;
+
+        /// <summary>Materiał wzorcowy PotatoParty/PotatoHero (z Resources, żeby shader trafił do buildu).</summary>
+        static Material HeroBase()
+        {
+            if (heroTried) return heroBase;
+            heroTried = true;
+            if (GraphicsSettings.currentRenderPipeline == null) return null; // shader jest tylko pod URP
+            var fromResources = Resources.Load<Material>("PotatoParty/PotatoHero");
+            if (fromResources != null) heroBase = fromResources;
+            else
+            {
+                var s = Shader.Find("PotatoParty/PotatoHero");
+                if (s != null && s.isSupported) heroBase = new Material(s);
+            }
+            return heroBase;
+        }
+
+        /// <summary>Czy ziemniaki używają shadera bohatera (false = zwykły URP Lit jako zapas).</summary>
+        public static bool HeroShaderAvailable { get { return HeroBase() != null; } }
+
+        /// <summary>
+        /// Materiał części ziemniaka na shaderze bohatera, z ustawieniami dobranymi do części ciała.
+        /// Gdy shadera nie ma (Built-in, stara karta), zwraca zwykły materiał z <see cref="Mat"/>.
+        /// </summary>
+        public static Material HeroMat(Color c, PotatoPart part, float smoothness = 0.55f)
+        {
+            var b = HeroBase();
+            if (b == null) return Mat(c, smoothness);
+            smoothness *= Gloss;
+            Color32 k = c;
+            string key = "hero," + (int)part + "," + k.r + "," + k.g + "," + k.b + "," + Mathf.RoundToInt(smoothness * 100);
+            Material m;
+            if (cache.TryGetValue(key, out m) && m != null) return m;
+            m = new Material(b) { name = "Ziemniak " + part };
+            m.SetColor("_BaseColor", c);
+            m.SetFloat("_Smoothness", smoothness);
+            switch (part)
+            {
+                case PotatoPart.Body:
+                    m.SetFloat("_Thickness", 0.65f);
+                    break;
+                case PotatoPart.Belly:
+                    // brzuszek nachodzi na tułów: słabszy kontur, żeby nie rysował "pierścienia" na ciele
+                    m.SetFloat("_Thickness", 0.7f);
+                    m.SetFloat("_RimStrength", 0.25f);
+                    m.SetFloat("_SpeckleAmount", 0.3f);
+                    break;
+                case PotatoPart.Face:
+                    m.SetFloat("_RimStrength", 0.15f);
+                    m.SetFloat("_SpeckleAmount", 0.12f);
+                    m.SetFloat("_ScatterStrength", 0.8f);
+                    m.SetColor("_FleshColor", new Color(1f, 0.62f, 0.5f));
+                    m.SetFloat("_MaskReceive", 0.7f);
+                    break;
+                case PotatoPart.Limb:
+                    // cienkie rączki mocno prześwitują pod światło
+                    m.SetFloat("_Thickness", 0.15f);
+                    m.SetFloat("_RimStrength", 0.6f);
+                    m.SetFloat("_SpeckleAmount", 0.2f);
+                    break;
+                case PotatoPart.Spot:
+                    m.SetFloat("_Thickness", 0.8f);
+                    m.SetFloat("_RimStrength", 0.4f);
+                    m.SetFloat("_SpeckleAmount", 0.8f);
+                    break;
             }
             cache[key] = m;
             return m;

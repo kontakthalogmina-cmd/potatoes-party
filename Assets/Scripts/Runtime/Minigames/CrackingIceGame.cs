@@ -59,6 +59,8 @@ namespace PotatoParty
         {
             // Na płytach trzeba precyzji, więc lód jest tu trochę mniej śliski
             p.Grip = Mathf.Max(p.Grip, 0.6f);
+            // na mrozie skórka powoli łapie szron
+            if (p.Surface != null) p.Surface.FrostTarget = 0.35f;
         }
 
         public override Vector3 SpawnPoint(int i, int n)

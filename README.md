@@ -45,6 +45,7 @@ ESC, P albo Start na padzie: pauza. W lobby dołączasz, wciskając skok lub akc
   - *Ucieczka przed Kombajnem* (Pole kukurydzy) — kombajn goni najbliższego.
   - *Labirynt w Ogrodzie* — za każdym razem inny labirynt, pierwszy przy wyjściu wygrywa.
 - **Wygląd:** jasny, słoneczny i schludny: niebo z gradientem, miękkie cienie, lekki bloom, woda pod areną, chmurki i kilka balonów w tle. Czcionki: Titan One (tytuły, przyciski) i Varela Round (zwykły tekst), licencja OFL.
+- **Styl „Aksamitna Bulwa”:** ziemniaki mają własny shader (`Assets/Shaders/PotatoHero`): aksamitny meszek na krawędziach, ciepły miąższ prześwitujący pod światło (fake SSS), kontur, który zawsze odcina postać od tła, oraz błoto, szron i przypalenia na skórce sterowane z minigier. Opis stylu i logiki shadera: [`docs/ArtDirection.md`](docs/ArtDirection.md).
 - **Ziemniaczki z charakterem:** gładkie, błyszczące ciało, wielkie oczy, mruganie, miny (przerażone „O” przy upadku), rączki w rękawiczkach, tupiące nóżki, kiełek na czubku i pierścień w kolorze gracza pod stopami.
 - **Efekty:** konfetti przy wygranej, golu i na mecie, deszcz konfetti na podium, obłoczki kurzu przy skoku i lądowaniu.
 - **Interfejs:** białe karty, granatowy tekst, wypukłe kolorowe przyciski i sprężyste animacje okienek. W grze: nazwa minigry u góry, karty graczy na dole i okrągły licznik czasu w rogu.

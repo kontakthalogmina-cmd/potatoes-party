@@ -112,8 +112,14 @@ namespace PotatoParty
                 if (o == victim) continue;
                 var d = o.transform.position - c;
                 d.y = 0;
-                if (d.magnitude < 4f) o.Knock(d.normalized * 9f + Vector3.up * 5f, 0.4f);
+                if (d.magnitude < 4f)
+                {
+                    o.Knock(d.normalized * 9f + Vector3.up * 5f, 0.4f);
+                    // przypalona skórka od strony wybuchu (żar gaśnie szybko, sadza zostaje)
+                    if (o.Surface != null) o.Surface.Scorch(c, Mathf.Lerp(0.85f, 0.35f, d.magnitude / 4f));
+                }
             }
+            if (victim.Surface != null) victim.Surface.Scorch(c + Vector3.down, 1f);
             Eliminate(victim, false);
             // każdy, kto przetrwał wybuch, dostaje punkt (przyda się przy remisach)
             foreach (var o in Alive) Score[o] = ScoreOf(o) + 1;

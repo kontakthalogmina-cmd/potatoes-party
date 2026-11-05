@@ -71,6 +71,17 @@ namespace PotatoParty
             color.contrast.Override(6f);
             color.saturation.Override(12f);
 
+            // "Aksamitna Bulwa": cienie lekko chłodne i fioletowe (nigdy szare), światła ciepłe.
+            // Kontrast temperatur zamiast kontrastu jasności – ziemniaki odcinają się od tła bez ciemnych cieni.
+            var smh = profile.Add<ShadowsMidtonesHighlights>(true);
+            smh.shadows.Override(new Vector4(0.94f, 0.94f, 1.08f, 0f));
+            smh.midtones.Override(new Vector4(1f, 1f, 1f, 0f));
+            smh.highlights.Override(new Vector4(1.04f, 1.01f, 0.95f, 0f));
+            smh.shadowsStart.Override(0f);
+            smh.shadowsEnd.Override(0.3f);
+            smh.highlightsStart.Override(0.55f);
+            smh.highlightsEnd.Override(1f);
+
             var vig = profile.Add<Vignette>(true);
             vig.intensity.Override(0.12f);
             vig.smoothness.Override(0.6f);
