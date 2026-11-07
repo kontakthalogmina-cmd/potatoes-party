@@ -93,6 +93,23 @@ namespace PotatoParty
             return p;
         }
 
+        /// <summary>Manekin do garderoby: sam wygląd (skórka), bez fizyki i sterowania.</summary>
+        public static Potato CreateMannequin(PlayerSlot slot, Transform parent, Vector3 localPos)
+        {
+            var go = new GameObject("Manekin " + slot.Name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            var rb = go.AddComponent<Rigidbody>();
+            rb.isKinematic = true;
+            var p = go.AddComponent<Potato>();
+            p.Slot = slot;
+            p.Body = rb;
+            p.Frozen = true;
+            p.BuildVisual();
+            p.Grounded = true;
+            return p;
+        }
+
         void BuildVisual()
         {
             // Gładki ziemniaczek z dużą buzią, rączkami i nóżkami, w wybranej skórce

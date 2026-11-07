@@ -17,7 +17,7 @@ namespace PotatoParty
         readonly Dictionary<Potato, Text> labels = new Dictionary<Potato, Text>();
         readonly List<ToastItem> toasts = new List<ToastItem>();
 
-        class Chip { public Image Bg, Portrait; public Text Name, Points, Stat; }
+        class Chip { public Image Bg, Portrait, Inner; public Color SkinColor; public Text Name, Points, Stat; }
         class ToastItem { public Text Text; public float Age; }
 
         public static Hud Create(Transform parent)
@@ -117,9 +117,14 @@ namespace PotatoParty
             var portrait = UIKit.Panel(bg.transform, "Portret", s.Color);
             UIKit.Stretch(portrait.rectTransform, new Vector2(0, 0), new Vector2(0, 1), new Vector2(6, 6), new Vector2(76, -6));
             chip.Portrait = portrait;
+            // środek portretu w kolorze skórki, ramka w kolorze gracza
+            chip.SkinColor = s.SkinData.BodyColor(s.Color);
+            var inner = UIKit.Panel(portrait.transform, "Skorka", chip.SkinColor);
+            UIKit.Stretch(inner.rectTransform, Vector2.zero, Vector2.one, new Vector2(5, 5), new Vector2(-5, -5));
+            chip.Inner = inner;
             for (int e = -1; e <= 1; e += 2)
             {
-                var eye = UIKit.Panel(portrait.transform, "Oko", Color.white, false);
+                var eye = UIKit.Panel(inner.transform, "Oko", Color.white, false);
                 eye.sprite = UIKit.Circle;
                 UIKit.Place(eye.rectTransform, new Vector2(0.5f, 0.58f), new Vector2(e * 13f, 0), new Vector2(20, 24));
                 var pupil = UIKit.Panel(eye.transform, "Zrenica", Shapes.Hex("#1E1430"), false);
@@ -163,6 +168,7 @@ namespace PotatoParty
                     c.Stat.text = mg.StatFor(p);
                     var col = p.Slot.Color;
                     c.Portrait.color = p.Eliminated ? Color.Lerp(col, Color.gray, 0.75f) : col;
+                    if (c.Inner != null) c.Inner.color = p.Eliminated ? Color.Lerp(c.SkinColor, Color.gray, 0.75f) : c.SkinColor;
                 }
                 bool timed = mg.TimeLeft < 999f && mg.TimeLimit < 999f;
                 timer.gameObject.SetActive(timed);

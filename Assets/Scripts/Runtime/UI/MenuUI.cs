@@ -45,9 +45,9 @@ namespace PotatoParty
 
         class SlotRow
         {
-            public Image Bg, Swatch;
-            public Text Name, Control;
-            public Button Remove;
+            public Image Bg, Swatch, SkinDot;
+            public Text Name, Control, SkinName;
+            public Button Remove, SkinPrev, SkinNext;
         }
 
         public static MenuUI Create(Transform parent, GameManager gm)
@@ -379,10 +379,25 @@ namespace PotatoParty
             UIKit.Fill(r.Bg.rectTransform);
             r.Swatch = UIKit.Panel(r.Bg.transform, "Kolor", Color.gray);
             UIKit.Stretch(r.Swatch.rectTransform, new Vector2(0, 0), new Vector2(0, 1), new Vector2(10, 10), new Vector2(72, -10));
+            // kropka w kolorze skórki na kolorze gracza
+            r.SkinDot = UIKit.Panel(r.Swatch.transform, "Skorka", Color.white);
+            r.SkinDot.sprite = UIKit.Circle;
+            r.SkinDot.type = Image.Type.Simple;
+            UIKit.Stretch(r.SkinDot.rectTransform, new Vector2(0.18f, 0.18f), new Vector2(0.82f, 0.82f), Vector2.zero, Vector2.zero);
             r.Name = UIKit.Label(r.Bg.transform, "", 30, UIKit.Dark, TextAnchor.MiddleLeft, FontStyle.Bold);
-            UIKit.Stretch(r.Name.rectTransform, new Vector2(0, 0.42f), new Vector2(1, 1), new Vector2(88, 0), new Vector2(-80, -4));
+            UIKit.Stretch(r.Name.rectTransform, new Vector2(0, 0.42f), new Vector2(0.5f, 1), new Vector2(88, 0), new Vector2(0, -4));
             r.Control = UIKit.Label(r.Bg.transform, "", 22, UIKit.Dark * 0.7f + new Color(0, 0, 0, 0.3f), TextAnchor.MiddleLeft);
-            UIKit.Stretch(r.Control.rectTransform, new Vector2(0, 0), new Vector2(1, 0.5f), new Vector2(88, 4), new Vector2(-80, 0));
+            UIKit.Stretch(r.Control.rectTransform, new Vector2(0, 0), new Vector2(0.5f, 0.5f), new Vector2(88, 4), new Vector2(0, 0));
+
+            // wybór skórki: < nazwa >
+            var skinBox = UIKit.Panel(r.Bg.transform, "Wybor skorki", Shapes.Hex("#EEF0FA"));
+            UIKit.Stretch(skinBox.rectTransform, new Vector2(0.5f, 0.14f), new Vector2(1, 0.86f), new Vector2(6, 0), new Vector2(-76, 0));
+            r.SkinPrev = UIKit.Button(skinBox.transform, "<", UIKit.Purple, null, 26);
+            UIKit.Stretch((RectTransform)r.SkinPrev.transform, new Vector2(0, 0), new Vector2(0, 1), new Vector2(3, 3), new Vector2(40, -3));
+            r.SkinNext = UIKit.Button(skinBox.transform, ">", UIKit.Purple, null, 26);
+            UIKit.Stretch((RectTransform)r.SkinNext.transform, new Vector2(1, 0), new Vector2(1, 1), new Vector2(-40, 3), new Vector2(-3, -3));
+            r.SkinName = UIKit.Label(skinBox.transform, "", 22, UIKit.Dark, TextAnchor.MiddleCenter, FontStyle.Bold);
+            UIKit.Stretch(r.SkinName.rectTransform, Vector2.zero, Vector2.one, new Vector2(42, 0), new Vector2(-42, 0));
             r.Remove = UIKit.Button(r.Bg.transform, "X", UIKit.Red, null, 30);
             UIKit.Stretch((RectTransform)r.Remove.transform, new Vector2(1, 0), new Vector2(1, 1), new Vector2(-68, 12), new Vector2(-12, -12));
             return r;
@@ -426,10 +441,20 @@ namespace PotatoParty
             {
                 var r = slotRows[i];
                 r.Remove.onClick.RemoveAllListeners();
-                if (i < slots.Count)
+                r.SkinPrev.onClick.RemoveAllListeners();
+                r.SkinNext.onClick.RemoveAllListeners();
+                bool filled = i < slots.Count;
+                r.SkinPrev.transform.parent.gameObject.SetActive(filled);
+                r.SkinDot.gameObject.SetActive(filled);
+                if (filled)
                 {
                     var slot = slots[i];
                     r.Swatch.color = slot.Color;
+                    var skin = slot.SkinData;
+                    r.SkinDot.color = skin.BodyColor(slot.Color);
+                    r.SkinName.text = skin.Name;
+                    r.SkinPrev.onClick.AddListener(() => gm.CycleSkin(slot, -1));
+                    r.SkinNext.onClick.AddListener(() => gm.CycleSkin(slot, 1));
                     r.Bg.color = Color.white;
                     r.Name.text = slot.Name;
                     r.Control.text = slot.Kind == ControlKind.Keyboard ? InputBridge.SchemeHint(slot.DeviceId) : slot.Kind == ControlKind.Gamepad ? "Pad: gałka ruch, A skok, X akcja" : "Sterowany przez komputer";
@@ -449,7 +474,7 @@ namespace PotatoParty
             startButton.interactable = slots.Count >= MatchSettings.MinPlayers;
             UIKit.SetButtonText(startButton, slots.Count >= MatchSettings.MinPlayers ? "Rozpocznij grę!" : "Potrzeba 2 graczy");
 
-            string hint = "Dołącz: <color=#FFC93C>SPACJA</color>, <color=#FFC93C>PRAWY CTRL</color> lub <color=#FFC93C>A</color> na padzie";
+            string hint = "Dołącz: <color=#FFC93C>SPACJA</color>, <color=#FFC93C>PRAWY CTRL</color> lub <color=#FFC93C>A</color> na padzie  ·  Skórka: wejdź na podest w <color=#FF8FB1>GARDEROBIE</color>";
             lobbyHint.text = hint;
         }
 

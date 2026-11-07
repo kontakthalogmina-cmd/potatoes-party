@@ -42,6 +42,8 @@ namespace PotatoParty
         int lastMinigame = -1;
         readonly Dictionary<Potato, Vector3> wander = new Dictionary<Potato, Vector3>();
         readonly Dictionary<Potato, float> wanderTime = new Dictionary<Potato, float>();
+        List<WardrobePad> pads = new List<WardrobePad>();
+        readonly Dictionary<PlayerSlot, int> onPad = new Dictionary<PlayerSlot, int>();
 
         public static void EnsureExists()
         {
@@ -77,6 +79,7 @@ namespace PotatoParty
             Sun.shadowStrength = 0.6f;
             RenderSettings.sun = Sun;
             Look.Setup(Camera.Cam, Sun);
+            Fx.Camera = Camera;
 
             UIKit.EnsureEventSystem();
             Debug.Log("[Potatoes Party] Czcionki: " + UIKit.TitleFont.name + " / " + UIKit.Font.name);
@@ -97,6 +100,8 @@ namespace PotatoParty
         void ClearWorld()
         {
             Potatoes.Clear();
+            pads.Clear();
+            onPad.Clear();
             wander.Clear();
             wanderTime.Clear();
             Camera.Targets.Clear();
@@ -105,15 +110,18 @@ namespace PotatoParty
             world.SetParent(transform, false);
         }
 
-        void BuildStage(MapTheme theme, float radius)
+        void BuildStage(MapTheme theme, float radius, bool wardrobe = false)
         {
             ClearWorld();
+            SkinFx.SetMap(theme);
             MapBuilder.ApplyAtmosphere(theme, Camera.Cam, Sun);
             MapBuilder.BuildEnvironment(theme, world, radius);
             MapBuilder.RoundArena(world, radius, theme);
             MapBuilder.WallRing(world, radius, theme);
+            if (radius >= MapBuilder.HubRadius - 0.01f) pads = MapBuilder.BuildHub(world, theme, wardrobe);
             Camera.ArenaCenter = Vector3.zero;
             Camera.ArenaRadius = radius;
+            Look.RefreshReflections(world);
         }
 
         Potato Spawn(PlayerSlot slot, Vector3 pos)
@@ -130,7 +138,7 @@ namespace PotatoParty
             float t;
             if (!wanderTime.TryGetValue(p, out t) || Time.time > t)
             {
-                var c = Random.insideUnitCircle * Camera.ArenaRadius * 0.75f;
+                var c = Random.insideUnitCircle * Mathf.Min(Camera.ArenaRadius, 9f) * 0.75f;
                 wander[p] = new Vector3(c.x, 0, c.y);
                 wanderTime[p] = Time.time + Random.Range(1.5f, 4f);
             }
@@ -148,14 +156,15 @@ namespace PotatoParty
             if (!JoinedAsGuest && !string.IsNullOrEmpty(Settings.LobbyCode)) Lobbies.Unpublish(Settings.LobbyCode);
             Slots.Clear();
             State = GameState.MainMenu;
-            BuildStage(MapTheme.Get(MapId.Farm), 8f);
+            BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius);
+            Look.SetBackgroundBlur(true, 26f, 60f);
             Camera.ScreenOffset = new Vector3(-6.5f, 0, 0);
             Camera.MinDistance = 16f;
             Camera.FollowArenaPull = 1f;
             Camera.MinSpread = 16f;
             for (int i = 0; i < 4; i++)
             {
-                var slot = new PlayerSlot { Index = i, Name = PlayerColors.BotNames[i], Color = PlayerColors.All[i], Kind = ControlKind.Bot };
+                var slot = new PlayerSlot { Index = i, Name = PlayerColors.BotNames[i], Color = PlayerColors.All[i], Kind = ControlKind.Bot, Skin = (i * 2 + Random.Range(0, 2)) % PotatoSkins.Count };
                 var p = Spawn(slot, new Vector3(-3f + i * 2f, 1f, 0));
                 p.Frozen = false;
                 p.BotBrain = IdleWander;
@@ -220,7 +229,8 @@ namespace PotatoParty
         {
             StopMatch();
             State = GameState.Lobby;
-            BuildStage(MapTheme.Get(MapId.Farm), 8f);
+            BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius, true);
+            Look.SetBackgroundBlur(true, 34f, 80f);
             Camera.ScreenOffset = Vector3.zero;
             Camera.MinDistance = 15f;
             Camera.FollowArenaPull = 0.5f;
@@ -256,7 +266,7 @@ namespace PotatoParty
             Camera.Targets.Clear();
             for (int i = 0; i < Slots.Count; i++)
             {
-                var p = Spawn(Slots[i], new Vector3(-5f + i * 2f, 1f, -1f));
+                var p = Spawn(Slots[i], new Vector3(-5f + i * 2f, 1f, -2.5f));
                 p.Frozen = false;
                 if (Slots[i].IsBot) p.BotBrain = IdleWander;
             }
@@ -275,6 +285,7 @@ namespace PotatoParty
             int c = FreeColor();
             if (c < 0) return null;
             var slot = new PlayerSlot { Index = c, Color = PlayerColors.All[c], Kind = kind, DeviceId = device };
+            slot.Skin = kind == ControlKind.Bot ? RandomFreeSkin() : PotatoSkins.Saved(c);
             if (kind == ControlKind.Bot)
             {
                 var used = Slots.Select(s => s.Name).ToList();
@@ -285,6 +296,80 @@ namespace PotatoParty
             Slots.Add(slot);
             Slots.Sort((a, b) => a.Index.CompareTo(b.Index));
             return slot;
+        }
+
+        int RandomFreeSkin()
+        {
+            var free = new List<int>();
+            for (int i = 0; i < PotatoSkins.Count; i++) if (!Slots.Any(s => s.Skin == i)) free.Add(i);
+            return free.Count > 0 ? free[Random.Range(0, free.Count)] : Random.Range(0, PotatoSkins.Count);
+        }
+
+        /// <summary>Strzałki w karcie gracza w lobby: następna/poprzednia skórka.</summary>
+        public void CycleSkin(PlayerSlot s, int dir)
+        {
+            SetSkin(s, (s.Skin + dir + PotatoSkins.Count) % PotatoSkins.Count);
+        }
+
+        /// <summary>Zmienia skórkę gracza; w lobby od razu przebiera jego ziemniaka (z efektem).</summary>
+        public void SetSkin(PlayerSlot s, int skin)
+        {
+            if (s == null) return;
+            skin = Mathf.Clamp(skin, 0, PotatoSkins.Count - 1);
+            if (s.Skin == skin) return;
+            s.Skin = skin;
+            if (!s.IsBot) PotatoSkins.Save(s.Index, skin);
+            var old = Potatoes.FirstOrDefault(p => p != null && p.Slot == s);
+            if (old != null && State == GameState.Lobby)
+            {
+                var pos = old.transform.position;
+                var facing = old.Facing;
+                Potatoes.Remove(old);
+                Camera.Targets.Remove(old.transform);
+                wander.Remove(old);
+                wanderTime.Remove(old);
+                Destroy(old.gameObject);
+                var p = Spawn(s, pos);
+                p.FaceTowards(facing);
+                p.Frozen = false;
+                if (s.IsBot) p.BotBrain = IdleWander;
+                p.Knock(Vector3.up * 5f, 0.1f);
+                Fx.Sparkle(world, pos + Vector3.up * 0.6f, Color.Lerp(s.Color, Color.white, 0.3f), 1.4f);
+                Fx.Mist(world, pos, Color.white, 1f);
+            }
+            AudioManager.Play(Sfx.Coin, 0.8f);
+            if (State == GameState.Lobby)
+            {
+                Menu.RefreshLobby();
+                Hud.Toast(s.Name + ": skórka " + PotatoSkins.Get(skin).Name + "!", s.Color);
+            }
+        }
+
+        /// <summary>Garderoba w lobby: wejście na podest zakłada skórkę z manekina obok.</summary>
+        void UpdateWardrobe()
+        {
+            if (pads.Count == 0) return;
+            float pulse = 0.5f + 0.5f * Mathf.Sin(Time.time * 3f);
+            foreach (var pad in pads)
+            {
+                if (pad.Glow == null) continue;
+                pad.Glow.localScale = new Vector3(1.45f, 0.08f, 1.45f) * (1f + pulse * 0.04f);
+            }
+            foreach (var p in Potatoes.ToList())
+            {
+                if (p == null || p.Slot == null || p.Slot.IsBot) continue;
+                int inside = -1;
+                foreach (var pad in pads)
+                {
+                    var d = p.transform.position - pad.Position;
+                    d.y = 0;
+                    if (d.magnitude < pad.Radius && p.transform.position.y < 2f) { inside = pad.Skin; break; }
+                }
+                int last;
+                onPad.TryGetValue(p.Slot, out last);
+                if (inside >= 0 && inside != last - 1 && inside != p.Slot.Skin) SetSkin(p.Slot, inside);
+                onPad[p.Slot] = inside + 1; // 0 = poza podestem
+            }
         }
 
         public void AddBot() { AddBot(true); }
@@ -510,6 +595,8 @@ namespace PotatoParty
         void BuildRound(Minigame mg, MapTheme theme)
         {
             ClearWorld();
+            SkinFx.SetMap(theme);
+            Look.SetBackgroundBlur(false);
             MapBuilder.ApplyAtmosphere(theme, Camera.Cam, Sun);
             MapBuilder.BuildEnvironment(theme, world, mg.ArenaRadius);
             mg.Setup(this, theme, world);
@@ -530,11 +617,13 @@ namespace PotatoParty
             Camera.FollowArenaPull = mg.CameraPull;
             Camera.MinSpread = 7f;
             Camera.SnapNow();
+            Look.RefreshReflections(world);
         }
 
         void ShowChampions(List<PlayerSlot> champs)
         {
-            BuildStage(MapTheme.Get(MapId.Farm), 8f);
+            BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius);
+            Look.SetBackgroundBlur(true, 24f, 55f);
             // Podium
             MapBuilder.Disc(world, new Vector3(0, 0.4f, 0), 2.5f, 0.8f, UIKit.Yellow);
             for (int i = 0; i < champs.Count; i++)
@@ -576,7 +665,7 @@ namespace PotatoParty
 
         void Update()
         {
-            if (State == GameState.Lobby && !Paused) DetectJoins();
+            if (State == GameState.Lobby && !Paused) { DetectJoins(); UpdateWardrobe(); }
 
             if (InMatch && (State == GameState.Playing || State == GameState.Intro || State == GameState.RoundResults) && InputBridge.PauseDown())
                 SetPaused(!Paused);

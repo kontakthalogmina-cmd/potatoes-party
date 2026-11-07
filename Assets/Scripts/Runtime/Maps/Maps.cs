@@ -188,7 +188,7 @@ namespace PotatoParty
 
             // Pierścień lądu dookoła
             float inner = arenaRadius + 6f;
-            float depth = 46f;
+            float depth = 58f;
             int segs = 24;
             float landTop = t.Id == MapId.Beach ? -1.2f : -0.9f;
             for (int i = 0; i < segs; i++)
@@ -204,6 +204,8 @@ namespace PotatoParty
             var rng = new System.Random((int)t.Id * 977 + 13);
             Look.Clouds(env, inner);
             Look.Balloons(env, inner);
+            Fx.Ambient(t, env, arenaRadius);
+            GroundDetail(env, t, inner, depth, landTop, new System.Random((int)t.Id * 131 + 7));
             switch (t.Id)
             {
                 case MapId.Farm: Farm(env, t, inner, landTop, rng); break;
@@ -391,7 +393,7 @@ namespace PotatoParty
                 floe.AddComponent<Bobber>().Amplitude = 0.12f;
             }
 
-            Snowfall.Create(env, inner + 10f);
+            // śnieg padający płatkami cząsteczek: Fx.Ambient
         }
     }
 
