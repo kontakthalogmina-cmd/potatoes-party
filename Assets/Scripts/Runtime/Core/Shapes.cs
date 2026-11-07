@@ -47,6 +47,7 @@ namespace PotatoParty
             Material m;
             if (cache.TryGetValue(key, out m) && m != null) return m;
             m = new Material(BaseMaterial());
+            m.enableInstancing = true; // setki takich samych drzewek, kamieni i kwiatków = mało draw calli
             m.color = c;
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
             if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smoothness);
@@ -91,16 +92,47 @@ namespace PotatoParty
         /// </summary>
         public static Material HeroMat(Color c, PotatoPart part, float smoothness = 0.55f)
         {
+            return HeroMat(c, part, smoothness, null, -1, c);
+        }
+
+        /// <summary>
+        /// Materiał części ziemniaka w danej skórce. Kolor gracza trafia do konturu (_PlayerColor),
+        /// a wzór, metal, miąższ i meszek – ze skórki. Pamięć podręczna po skórce, części i kolorach.
+        /// </summary>
+        public static Material HeroMat(Color c, PotatoPart part, float smoothness, PotatoSkin skin, int skinIndex, Color player)
+        {
             var b = HeroBase();
-            if (b == null) return Mat(c, smoothness);
+            if (b == null)
+            {
+                // zapasowy URP Lit: chociaż metal i świecenie wzoru
+                if (skin != null && skin.Metallic > 0.5f) return Mat(c, 0.85f);
+                return Mat(c, smoothness);
+            }
             smoothness *= Gloss;
-            Color32 k = c;
-            string key = "hero," + (int)part + "," + k.r + "," + k.g + "," + k.b + "," + Mathf.RoundToInt(smoothness * 100);
+            Color32 k = c, kp = player;
+            string key = "hero," + (int)part + "," + k.r + "," + k.g + "," + k.b + "," + Mathf.RoundToInt(smoothness * 100) + ",s" + skinIndex + "," + kp.r + "," + kp.g + "," + kp.b;
             Material m;
             if (cache.TryGetValue(key, out m) && m != null) return m;
-            m = new Material(b) { name = "Ziemniak " + part };
+            m = new Material(b) { name = "Ziemniak " + part + (skin != null ? " (" + skin.Name + ")" : "") };
             m.SetColor("_BaseColor", c);
+            m.SetColor("_PlayerColor", player);
             m.SetFloat("_Smoothness", smoothness);
+            if (skin != null)
+            {
+                m.SetColor("_FleshColor", skin.Flesh);
+                m.SetColor("_SheenColor", skin.Sheen);
+                m.SetFloat("_SpeckleAmount", skin.Speckle);
+                m.SetFloat("_ScatterStrength", skin.Scatter);
+                bool patterned = part == PotatoPart.Body || part == PotatoPart.Limb || part == PotatoPart.Spot;
+                if (patterned && skin.Pattern != SkinPattern.None)
+                {
+                    m.SetFloat("_PatternType", (float)(int)skin.Pattern);
+                    m.SetColor("_PatternColor", skin.PatternColor);
+                    m.SetColor("_PatternGlow", skin.PatternGlow);
+                    m.SetFloat("_PatternScale", skin.PatternScale);
+                }
+                if (part != PotatoPart.Face) m.SetFloat("_Metallic", skin.Metallic);
+            }
             switch (part)
             {
                 case PotatoPart.Body:
@@ -110,12 +142,13 @@ namespace PotatoParty
                     // brzuszek nachodzi na tułów: słabszy kontur, żeby nie rysował "pierścienia" na ciele
                     m.SetFloat("_Thickness", 0.7f);
                     m.SetFloat("_RimStrength", 0.25f);
-                    m.SetFloat("_SpeckleAmount", 0.3f);
+                    m.SetFloat("_SpeckleAmount", skin != null ? skin.Speckle * 0.5f : 0.3f);
                     break;
                 case PotatoPart.Face:
                     m.SetFloat("_RimStrength", 0.15f);
                     m.SetFloat("_SpeckleAmount", 0.12f);
                     m.SetFloat("_ScatterStrength", 0.8f);
+                    m.SetFloat("_Metallic", 0f);
                     m.SetColor("_FleshColor", new Color(1f, 0.62f, 0.5f));
                     m.SetFloat("_MaskReceive", 0.7f);
                     break;
@@ -123,12 +156,12 @@ namespace PotatoParty
                     // cienkie rączki mocno prześwitują pod światło
                     m.SetFloat("_Thickness", 0.15f);
                     m.SetFloat("_RimStrength", 0.6f);
-                    m.SetFloat("_SpeckleAmount", 0.2f);
+                    m.SetFloat("_SpeckleAmount", skin != null ? skin.Speckle * 0.35f : 0.2f);
                     break;
                 case PotatoPart.Spot:
                     m.SetFloat("_Thickness", 0.8f);
                     m.SetFloat("_RimStrength", 0.4f);
-                    m.SetFloat("_SpeckleAmount", 0.8f);
+                    m.SetFloat("_SpeckleAmount", skin != null ? Mathf.Max(0.3f, skin.Speckle) : 0.8f);
                     break;
             }
             cache[key] = m;

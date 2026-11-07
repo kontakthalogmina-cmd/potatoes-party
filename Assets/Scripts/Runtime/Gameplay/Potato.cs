@@ -29,6 +29,8 @@ namespace PotatoParty
         public Rigidbody Body;
         public Transform Visual;
         public Transform HeadAnchor;
+        /// <summary>Skórka, w której zbudowano postać.</summary>
+        public PotatoSkin Skin { get; private set; }
         /// <summary>Błoto / szron / zwęglenie / błysk na shaderze bohatera (null, gdy shadera brak).</summary>
         public PotatoSurface Surface;
 
@@ -93,25 +95,34 @@ namespace PotatoParty
 
         void BuildVisual()
         {
-            // Gładki, błyszczący ziemniaczek z dużą buzią, rączkami i nóżkami
+            // Gładki ziemniaczek z dużą buzią, rączkami i nóżkami, w wybranej skórce
             var c = Color;
-            var body = Color.Lerp(c, Color.white, 0.08f);
-            var dark = Color.Lerp(c, Color.black, 0.25f);
-            var skin = Shapes.Hex("#FFD9A8");
+            int skinIndex = Slot != null ? Slot.Skin : 0;
+            Skin = PotatoSkins.Get(skinIndex);
+            var body = Skin.BodyColor(c);
+            var dark = Skin.SpotColor(c);
+            var belly = Skin.BellyColor(c);
+            var skin = Skin.Face;
+            float gloss = Skin.Smoothness;
             Visual = Shapes.Empty("Wyglad", transform, Vector3.zero).transform;
 
             var heroParts = new System.Collections.Generic.List<Renderer>();
-            var torso = Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, 0.02f, 0), new Vector3(1.02f, 1.32f, 0.96f), body, false, 0.7f, "Cialo");
-            Hero(torso, body, PotatoPart.Body, 0.7f, heroParts);
+            System.Action<GameObject, Color, PotatoPart, float> hero = (go, col, part, sm) =>
+            {
+                var r = go.GetComponent<Renderer>();
+                r.sharedMaterial = Shapes.HeroMat(col, part, sm, Skin, skinIndex, c);
+                heroParts.Add(r);
+            };
+            var torso = Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, 0.02f, 0), new Vector3(1.02f, 1.32f, 0.96f), body, false, gloss, "Cialo");
+            hero(torso, body, PotatoPart.Body, gloss);
             Shapes.AddOutline(torso);
             // jaśniejszy brzuszek i "plamki ziemniaka"
-            Hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, -0.22f, 0.3f), new Vector3(0.7f, 0.72f, 0.4f), Color.Lerp(c, Color.white, 0.5f), false, 0.6f),
-                Color.Lerp(c, Color.white, 0.5f), PotatoPart.Belly, 0.6f, heroParts);
-            Hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0.4f, -0.1f, -0.25f), new Vector3(0.16f, 0.16f, 0.1f), dark, false, 0.5f), dark, PotatoPart.Spot, 0.5f, heroParts);
-            Hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(-0.38f, 0.3f, -0.28f), new Vector3(0.12f, 0.12f, 0.08f), dark, false, 0.5f), dark, PotatoPart.Spot, 0.5f, heroParts);
+            hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, -0.22f, 0.3f), new Vector3(0.7f, 0.72f, 0.4f), belly, false, 0.6f), belly, PotatoPart.Belly, gloss * 0.85f);
+            hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0.4f, -0.1f, -0.25f), new Vector3(0.16f, 0.16f, 0.1f), dark, false, 0.5f), dark, PotatoPart.Spot, 0.5f);
+            hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(-0.38f, 0.3f, -0.28f), new Vector3(0.12f, 0.12f, 0.08f), dark, false, 0.5f), dark, PotatoPart.Spot, 0.5f);
 
             // twarz w "okienku"
-            Hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, 0.22f, 0.33f), new Vector3(0.76f, 0.54f, 0.34f), skin, false, 0.45f, "Twarz"), skin, PotatoPart.Face, 0.45f, heroParts);
+            hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, 0.22f, 0.33f), new Vector3(0.76f, 0.54f, 0.34f), skin, false, 0.45f, "Twarz"), skin, PotatoPart.Face, 0.45f);
             eyes = new Transform[2];
             for (int s = -1; s <= 1; s += 2)
             {
@@ -126,24 +137,19 @@ namespace PotatoParty
             mouthO = Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, 0.07f, 0.5f), new Vector3(0.11f, 0.13f, 0.05f), Shapes.Hex("#6B1E2E"), false, 0.3f, "Buzia O");
             mouthO.SetActive(false);
 
-            // kiełek na czubku (ziemniak!)
-            var sprout = Shapes.Empty("Kielek", Visual, new Vector3(0, 0.64f, 0)).transform;
-            Shapes.Prim(PrimitiveType.Cylinder, sprout, new Vector3(0, 0.08f, 0), new Vector3(0.06f, 0.09f, 0.06f), Shapes.Hex("#4CC24A"));
-            for (int s = -1; s <= 1; s += 2)
-            {
-                var leaf = Shapes.Prim(PrimitiveType.Sphere, sprout, new Vector3(0.12f * s, 0.2f, 0), new Vector3(0.24f, 0.07f, 0.13f), Shapes.Hex("#5BD65A"), false, 0.6f);
-                leaf.transform.localRotation = Quaternion.Euler(0, 0, 25f * s);
-            }
+            // kiełek na czubku albo dodatek skórki (kapelusz, czapka, rogi, okulary...)
+            PotatoSkins.BuildAccessory(Skin, Visual, c);
 
-            // rączki z białymi rękawiczkami
+            // rączki z rękawiczkami (w kolorze gracza, jeśli skórka nie ma jego koloru)
+            var glove = Skin.PlayerGloves ? Color.Lerp(c, Color.white, 0.12f) : Color.white;
             arms = new Transform[2];
             for (int s = -1; s <= 1; s += 2)
             {
                 var pivot = Shapes.Empty("Reka", Visual, new Vector3(0.48f * s, 0.02f, 0.02f)).transform;
-                var arm = Shapes.Prim(PrimitiveType.Sphere, pivot, new Vector3(0.04f * s, -0.18f, 0), new Vector3(0.2f, 0.4f, 0.2f), body, false, 0.7f);
-                Hero(arm, body, PotatoPart.Limb, 0.7f, heroParts);
+                var arm = Shapes.Prim(PrimitiveType.Sphere, pivot, new Vector3(0.04f * s, -0.18f, 0), new Vector3(0.2f, 0.4f, 0.2f), body, false, gloss);
+                hero(arm, body, PotatoPart.Limb, gloss);
                 Shapes.AddOutline(arm);
-                Shapes.Prim(PrimitiveType.Sphere, pivot, new Vector3(0.06f * s, -0.4f, 0), Vector3.one * 0.2f, Color.white, false, 0.6f);
+                Shapes.Prim(PrimitiveType.Sphere, pivot, new Vector3(0.06f * s, -0.4f, 0), Vector3.one * 0.2f, glove, false, 0.6f);
                 arms[s < 0 ? 0 : 1] = pivot;
             }
             // nóżki
@@ -151,7 +157,7 @@ namespace PotatoParty
             for (int s = -1; s <= 1; s += 2)
             {
                 var foot = Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0.21f * s, -0.6f, 0.06f), new Vector3(0.27f, 0.16f, 0.36f), dark, false, 0.6f, "Stopa");
-                Hero(foot, dark, PotatoPart.Spot, 0.6f, heroParts);
+                hero(foot, dark, PotatoPart.Spot, 0.6f);
                 Shapes.AddOutline(foot);
                 feet[s < 0 ? 0 : 1] = foot.transform;
             }
@@ -190,12 +196,6 @@ namespace PotatoParty
             blinkTimer = Random.Range(1.5f, 4f);
         }
 
-        static void Hero(GameObject go, Color c, PotatoPart part, float smoothness, System.Collections.Generic.List<Renderer> list)
-        {
-            var r = go.GetComponent<Renderer>();
-            r.sharedMaterial = Shapes.HeroMat(c, part, smoothness);
-            list.Add(r);
-        }
 
         public void Teleport(Vector3 pos)
         {

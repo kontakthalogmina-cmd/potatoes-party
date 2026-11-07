@@ -23,6 +23,14 @@ CBUFFER_START(UnityPerMaterial)
     half   _BumpStrength;
     half   _GroundOcclusion;    // przyciemnienie dołu postaci (kontakt z ziemią)
 
+    // --- skórka gracza: wzór proceduralny, metal i kolor gracza w konturze
+    half4  _PlayerColor;        // kolor gracza (rim), niezależny od koloru skórki
+    half   _PatternType;        // 0 brak, 1 paski, 2 łaty, 3 kosmos, 4 magma, 5 brokat
+    half4  _PatternColor;
+    half4  _PatternGlow;        // HDR: świecenie wzoru (gwiazdy, pęknięcia magmy)
+    half   _PatternScale;
+    half   _Metallic;
+
     // --- miękka tkanka
     half   _WrapDiffuse;        // owinięcie terminatora (fake SSS)
     half   _ScatterStrength;

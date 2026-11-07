@@ -62,7 +62,84 @@ struct PotatoSurface
     half3 sheen;
     half  occlusion;
     half3 emission;
+    half  metallic;       // 0 = skórka, 1 = metal (złota bulwa): kolorowy odblask, brak rozproszenia
 };
+
+// ---------------------------------------------------------------- wzory skórek
+// Proceduralne, w przestrzeni postaci: wzór "przykleja się" do ziemniaka i wspólnie obejmuje
+// tułów, rączki i stopy, bez UV i bez tekstur.
+
+struct PotatoPattern
+{
+    half  mask;     // 0..1: gdzie kładziemy _PatternColor
+    half3 glow;     // emisja (gwiazdy, magma, brokat)
+    half  height;   // wkład do reliefu (pęknięcia magmy są wklęsłe)
+    half  rough;    // dodatkowa szorstkość
+};
+
+PotatoPattern PP_EvaluatePattern(float3 cp, half3 N, half3 V, float cpWidth)
+{
+    PotatoPattern o = (PotatoPattern)0;
+    float sc = max(_PatternScale, 0.05);
+    int type = (int)round(_PatternType);
+
+    UNITY_BRANCH if (type == 1)
+    {
+        // PASKI: miękko falujące, poziome pasy (ziemniak fioletowy "Vitelotte")
+        float wob = PP_Fbm(cp * 1.7 + 3.1);
+        float v = cp.y * 5.5 * sc + wob * 1.4 + cp.x * 0.6;
+        float tri = abs(frac(v) - 0.5) * 2.0;
+        // szerokość piksela liczona poza gałęzią (pochodne w dynamicznym if są zabronione na części API)
+        float w = clamp(cpWidth * 5.5 * sc * 2.0, 0.02, 0.4);
+        o.mask = smoothstep(0.5 - w, 0.5 + w, tri);
+    }
+    else if (type == 2)
+    {
+        // ŁATY: nieregularne plamy (krówka)
+        float3 q = cp * 2.4 * sc + (PP_Fbm(cp * 3.0) - 0.5) * 0.9;
+        float3 w = PP_Worley(q);
+        o.mask = (1.0 - smoothstep(0.30, 0.36, w.x)) * step(0.42, w.z);
+        o.height = o.mask * 0.15;
+    }
+    else if (type == 3)
+    {
+        // KOSMOS: mgławica + migoczące gwiazdy
+        float n = PP_Fbm(cp * 1.6 * sc + 7.0);
+        o.mask = smoothstep(0.38, 0.78, n);
+        float3 g = cp * 22.0 * sc;
+        float3 id = floor(g);
+        float3 f = frac(g) - 0.5;
+        float h = PP_Hash31(id);
+        float d = length(f - (PP_Hash33(id) - 0.5) * 0.6);
+        half star = step(0.92, h) * saturate(1.0 - d * 7.0);
+        half twinkle = 0.45 + 0.55 * sin(_Time.y * (2.0 + h * 4.0) + h * 60.0);
+        o.glow = _PatternGlow.rgb * star * twinkle + _PatternColor.rgb * o.mask * 0.12;
+    }
+    else if (type == 4)
+    {
+        // MAGMA: ciemna, zastygła skorupa z pulsującymi, świecącymi pęknięciami
+        float3 q = cp * 2.6 * sc + (PP_Fbm(cp * 2.0 + 5.0) - 0.5) * 0.5;
+        float3 w = PP_Worley(q);
+        half crack = 1.0 - smoothstep(0.015, 0.10, w.y - w.x);
+        half pulse = 0.65 + 0.35 * sin(_Time.y * 2.2 + w.z * 6.28 + cp.y * 3.0);
+        o.mask = crack;
+        o.glow = _PatternGlow.rgb * crack * pulse;
+        o.height = -crack * 0.5;
+        o.rough = 0.35;
+    }
+    else if (type == 5)
+    {
+        // BROKAT: drobne płatki metalu, każdy z własną normalną – błyskają pod różnymi kątami
+        float3 g = cp * 46.0 * sc;
+        float3 id = floor(g);
+        float3 r = normalize(PP_Hash33(id) - 0.5);
+        half on = step(0.45, PP_Hash31(id + 3.3));
+        half spark = pow(saturate(dot(V, normalize(N + r * 0.85))), 48.0) * on;
+        o.glow = _PatternColor.rgb * spark * 3.0;
+        o.mask = 0;
+    }
+    return o;
+}
 
 half PP_D_GGX(half NdotH, half a2)
 {
@@ -110,7 +187,7 @@ half3 PP_DirectLight(Light light, PotatoSurface s, half3 N, half3 V)
     half sssBand = saturate(wrapped - NdotL * 0.85h);
     // światło "przecieka" w cień na krawędzi: rozpraszanie widzi bardziej miękki cień niż powierzchnia
     half sssShadow = lerp(shadow, 1.0h, 0.35h * s.scatter);
-    half3 diffuse = s.albedo * lerp(NdotL, wrapped, s.scatter * 0.5h) * shadow
+    half3 diffuse = s.albedo * lerp(NdotL, wrapped, s.scatter * 0.5h) * shadow * (1.0h - s.metallic)
                   + s.flesh * sssBand * s.scatter * 1.6h * sssShadow;
 
     // --- translucencja pod światło (Barré-Brisebois & Bouchard, GDC 2011)
@@ -123,15 +200,17 @@ half3 PP_DirectLight(Light light, PotatoSurface s, half3 N, half3 V)
     half a = max(perceptualRough * perceptualRough, 0.002h);
     half D = PP_D_GGX(NdotH, a * a);
     half Vis = PP_V_SmithGGXCorrelatedApprox(NdotV, NdotL, a);
-    half F = 0.04h + 0.96h * pow(1.0h - LdotH, 5.0h);
+    half F0 = lerp(0.04h, 0.9h, s.metallic);
+    half F = F0 + (1.0h - F0) * pow(1.0h - LdotH, 5.0h);
     half spec = D * Vis * F * NdotL;
     half shaped = smoothstep(0.30h, 0.42h, spec / (spec + 1.0h)) * (1.0h + s.smoothness * 2.0h);
     spec = lerp(spec, shaped, _SpecularBand) * s.specular * shadow;
+    half3 specColor = spec * lerp(half3(1.0h, 1.0h, 1.0h), s.albedo * 1.6h, s.metallic);   // metal barwi odblask
 
     // --- sheen: aksamitny meszek na krawędziach (fizycznie umotywowany rim w świetle)
     half3 sheen = s.sheen * PP_D_Charlie(NdotH, _SheenRoughness) * PP_V_Neubelt(NdotV, NdotL) * wrapped * sssShadow;
 
-    return (diffuse + transmission + spec + sheen) * light.color * dist;
+    return (diffuse + transmission + specColor + sheen) * light.color * dist;
 }
 
 // ---------------------------------------------------------------- fragment
@@ -158,6 +237,14 @@ half4 PotatoFrag(Varyings input) : SV_Target
     PotatoMasks m = PP_EvaluateMasks(cp, cn);
     height += m.height;
 
+    float cpWidth = length(fwidth(cp));
+    PotatoPattern pat = (PotatoPattern)0;
+    UNITY_BRANCH if (_PatternType > 0.5)
+    {
+        pat = PP_EvaluatePattern(cp, Ngeo, V, cpWidth);
+        height += pat.height;
+    }
+
     half3 N = PP_PerturbNormal(Ngeo, positionWS, height, _BumpStrength);
 
     // ---------- powierzchnia bazowa
@@ -172,6 +259,11 @@ half4 PotatoFrag(Varyings input) : SV_Target
     s.thickness = _Thickness;
     s.sheen = _SheenColor.rgb;
     s.emission = 0;
+    s.metallic = _Metallic;
+    // wzór skórki: kolor, szorstkość, świecenie (pod maskami – błoto i szron go przykrywają)
+    s.albedo = lerp(s.albedo, _PatternColor.rgb * (1.0h - eyes * 0.3h), pat.mask);
+    s.smoothness = saturate(s.smoothness - pat.rough * pat.mask);
+    s.emission += pat.glow;
     // kontakt z ziemią: dół postaci ciemnieje (stylizowany AO obiektu, działa też bez SSAO)
     s.occlusion = lerp(1.0h - _GroundOcclusion, 1.0h, saturate((cp.y + 0.75h) / 0.9h));
     s.occlusion *= 1.0h - eyes * 0.3h;
@@ -181,6 +273,8 @@ half4 PotatoFrag(Varyings input) : SV_Target
     {
         half3 soot = lerp(half3(0.05h, 0.035h, 0.03h), half3(0.20h, 0.13h, 0.09h), micro);
         s.albedo = lerp(s.albedo, soot, m.burn);
+        s.emission *= 1.0h - m.burn;
+        s.metallic *= 1.0h - m.burn;
         s.smoothness = lerp(s.smoothness, 0.12h, m.burn);
         s.scatter *= 1.0h - m.burn * 0.85h;
         s.sheen *= 1.0h - m.burn;
@@ -197,6 +291,8 @@ half4 PotatoFrag(Varyings input) : SV_Target
         s.smoothness = lerp(s.smoothness, 0.88h, m.mudWet);        // błyszcząca, mokra krawędź
         s.scatter *= 1.0h - m.mud;
         s.sheen *= 1.0h - m.mud;
+        s.emission *= 1.0h - m.mud;
+        s.metallic *= 1.0h - m.mud;
     }
     UNITY_BRANCH if (_FrostAmount > 0.001)
     {
@@ -208,6 +304,8 @@ half4 PotatoFrag(Varyings input) : SV_Target
         s.scatter = lerp(s.scatter, 0.9h, m.frostThick);
         s.thickness = lerp(s.thickness, 0.2h, m.frostThick);
         s.sheen *= 1.0h - m.frost;
+        s.emission *= 1.0h - m.frostThick * 0.7h;
+        s.metallic *= 1.0h - m.frost;
         s.specular = lerp(s.specular, 1.4h, m.frost);
         // migoczące drobinki lodu
         half glint = step(1.0h - 0.02h * m.frost, PP_Hash31(floor(cp * 80.0) + floor(_Time.y * 4.0)));
@@ -253,7 +351,7 @@ half4 PotatoFrag(Varyings input) : SV_Target
     half fresnel = pow(1.0h - NdotV, 5.0h);
     half3 sh = SampleSH(N);
     half3 shBack = SampleSH(-N);
-    color += s.albedo * sh * indirectAO;
+    color += s.albedo * sh * indirectAO * (1.0h - s.metallic * 0.8h);
     color += s.flesh * shBack * s.scatter * (1.0h - s.thickness) * 0.25h * indirectAO; // światło zza postaci
     color += s.sheen * sh * pow(1.0h - NdotV, 3.0h) * 0.6h * indirectAO;
 
@@ -261,14 +359,15 @@ half4 PotatoFrag(Varyings input) : SV_Target
     half perceptualRough = 1.0h - s.smoothness;
     half3 env = GlossyEnvironmentReflection(R, perceptualRough, indirectAO);
     half envF = 0.04h + (max(s.smoothness, 0.04h) - 0.04h) * fresnel;
-    color += env * envF * s.specular;
+    half3 envTint = lerp(half3(envF, envF, envF), s.albedo * (0.75h + 0.25h * fresnel), s.metallic);
+    color += env * envTint * s.specular;
 
     // ---------- rim gameplayowy: nie zależy od cieni ani pory dnia mapy, zawsze czyta sylwetkę
     half rim = pow(1.0h - NdotV, _RimPower);
     half awayFromSun = saturate(0.5h - 0.5h * dot(N, mainLight.direction));
     rim *= lerp(1.0h, awayFromSun * 1.6h, _RimLightAlign);
     rim *= 0.55h + 0.45h * saturate(N.y + 0.5h);                     // mocniej od nieba, słabiej przy ziemi
-    half3 rimTint = lerp(_RimColor.rgb, saturate(_BaseColor.rgb * 1.6h + 0.15h), _RimPlayerTint);
+    half3 rimTint = lerp(_RimColor.rgb, saturate(_PlayerColor.rgb * 1.6h + 0.15h), _RimPlayerTint);
     rimTint = lerp(rimTint, half3(0.55h, 0.85h, 1.0h), m.frost);     // zamrożony = zimny kontur
     rimTint *= 1.0h - m.mud * 0.6h;                                  // błoto matowi kontur
     color += rimTint * rim * _RimStrength * s.occlusion;

@@ -17,6 +17,14 @@ Shader "PotatoParty/PotatoHero"
         _BumpStrength ("Relief", Range(0, 0.1)) = 0.025
         _GroundOcclusion ("Przyciemnienie dołu", Range(0, 1)) = 0.35
 
+        [Header(Skorka gracza wzor i metal)]
+        _PlayerColor ("Kolor gracza (kontur)", Color) = (1, 1, 1, 1)
+        _PatternType ("Wzór: 0 brak, 1 paski, 2 łaty, 3 kosmos, 4 magma, 5 brokat", Float) = 0
+        _PatternColor ("Kolor wzoru", Color) = (1, 1, 1, 1)
+        [HDR] _PatternGlow ("Świecenie wzoru", Color) = (0, 0, 0, 1)
+        _PatternScale ("Skala wzoru", Float) = 1
+        _Metallic ("Metaliczność", Range(0, 1)) = 0
+
         [Header(Miekka tkanka)]
         _WrapDiffuse ("Owinięcie światła (wrap)", Range(0, 1)) = 0.5
         _ScatterStrength ("Rozpraszanie (fake SSS)", Range(0, 1)) = 0.7

@@ -7,21 +7,20 @@ namespace PotatoParty
     {
         public static void Explosion(Transform parent, Vector3 pos, float size)
         {
-            Burst(parent, pos, size, Shapes.Hex("#FF9A1F"), 0.45f);
-            Burst(parent, pos, size * 0.6f, Shapes.Hex("#FFE066"), 0.3f);
-            for (int i = 0; i < 10; i++)
-                Debris(parent, pos, i % 2 == 0 ? Shapes.Hex("#5A4636") : Shapes.Hex("#FF7B1F"), 7f);
+            Fx.Explosion(parent, pos, size);
+            // kilka kanciastych odłamków (bryły z cieniem) dla wagi wybuchu
+            for (int i = 0; i < 6; i++)
+                Debris(parent, pos, i % 2 == 0 ? Shapes.Hex("#5A4636") : Shapes.Hex("#3B302C"), 7f, 0.18f);
         }
 
         public static void Sparkle(Transform parent, Vector3 pos, Color c)
         {
-            Burst(parent, pos, 1.2f, c, 0.25f);
-            for (int i = 0; i < 5; i++) Debris(parent, pos, c, 4f, 0.15f);
+            Fx.Sparkle(parent, pos, c);
         }
 
         public static void Splash(Transform parent, Vector3 pos, Color c)
         {
-            for (int i = 0; i < 10; i++) Debris(parent, pos, c, 6f, 0.3f, true);
+            Fx.Splash(parent, pos, c);
         }
 
         static Material particleMat;
@@ -121,29 +120,10 @@ namespace PotatoParty
             return ps;
         }
 
-        /// <summary>Obłoczek kurzu (lądowanie, skok).</summary>
+        /// <summary>Obłoczek kurzu (lądowanie, skok) w kolorze podłoża mapy.</summary>
         public static void Puff(Transform parent, Vector3 pos, float size = 1f)
         {
-            for (int i = 0; i < 5; i++)
-            {
-                float a = i * Mathf.PI * 2f / 5f + Random.value;
-                var dir = new Vector3(Mathf.Cos(a), 0.25f, Mathf.Sin(a));
-                var go = Shapes.Prim(PrimitiveType.Sphere, parent, pos + dir * 0.3f, Vector3.one * 0.3f * size, Color.white, false, 0.1f);
-                go.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                var fx = go.AddComponent<TimedFx>();
-                fx.Life = 0.45f;
-                fx.Velocity = dir * 2.5f * size;
-                fx.Gravity = -1f;
-            }
-        }
-
-        static void Burst(Transform parent, Vector3 pos, float size, Color c, float time)
-        {
-            var go = Shapes.Prim(PrimitiveType.Sphere, parent, pos, Vector3.one * 0.2f, c);
-            go.GetComponent<Renderer>().sharedMaterial = Shapes.Mat(c, 0.1f, 1.5f);
-            var fx = go.AddComponent<TimedFx>();
-            fx.Life = time;
-            fx.GrowTo = size;
+            Fx.Dust(parent, pos, size, Mathf.RoundToInt(5 + 4 * size));
         }
 
         static void Debris(Transform parent, Vector3 pos, Color c, float speed, float scale = 0.25f, bool upward = false)
