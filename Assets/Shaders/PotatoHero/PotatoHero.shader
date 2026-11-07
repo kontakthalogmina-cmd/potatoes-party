@@ -57,6 +57,15 @@ Shader "PotatoParty/PotatoHero"
         _BurnDir ("Wybuch: kierunek (xyz) i siła (w)", Vector) = (0, 0, 1, 0)
         [HDR] _EmberColor ("Kolor żaru", Color) = (6.0, 1.6, 0.3, 1)
         _FlashAmount ("Błysk trafienia", Range(0, 1)) = 0
+        _BruiseAmount ("Siniaki", Range(0, 1)) = 0
+        _BruiseDir ("Siniak: kierunek (xyz) i siła (w)", Vector) = (0, 0, 1, 0)
+        _BruiseColor ("Kolor siniaka", Color) = (0.36, 0.17, 0.24, 1)
+
+        [Header(Krzywizna i wgniecenie)]
+        _CurvatureScale ("Krzywizna -> rozpraszanie", Range(0, 1)) = 0.16
+        _ImpactDentScale ("Głębokość wgniecenia", Range(0, 0.5)) = 0.16
+        [HideInInspector] _ImpactCenter ("", Vector) = (0, 0, 0, 1)
+        [HideInInspector] _ImpactDir ("", Vector) = (0, 0, 1, 0)
 
         [HideInInspector] _PP_Root0 ("", Vector) = (1, 0, 0, 0)
         [HideInInspector] _PP_Root1 ("", Vector) = (0, 1, 0, 0)
@@ -127,7 +136,7 @@ Shader "PotatoParty/PotatoHero"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 ShadowVaryings o;
-                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float3 positionWS = PP_ApplyImpact(TransformObjectToWorld(input.positionOS.xyz));
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
                 #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                     float3 lightDir = normalize(_LightPosition - positionWS);
@@ -169,7 +178,7 @@ Shader "PotatoParty/PotatoHero"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 DepthVaryings o;
-                o.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(PP_ApplyImpact(TransformObjectToWorld(input.positionOS.xyz)));
                 return o;
             }
 
@@ -201,7 +210,7 @@ Shader "PotatoParty/PotatoHero"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 DNVaryings o;
-                o.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(PP_ApplyImpact(TransformObjectToWorld(input.positionOS.xyz)));
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 return o;
             }

@@ -83,11 +83,10 @@ namespace PotatoParty
             if (stain.HasValue) p.Surface.SplashMud(point + Vector3.down, Mathf.Clamp(impact * 0.008f, 0.02f, 0.08f), stain.Value);
         }
 
-        /// <summary>Uderzenie zrywem: gwiazdka trafienia i plama od strony uderzenia.</summary>
+        /// <summary>Uderzenie zrywem: plama od strony uderzenia (podłoże mapy).</summary>
         public static void OnHit(Potato victim, Potato hitter)
         {
-            var mid = Vector3.Lerp(victim.transform.position, hitter.transform.position, 0.5f) + Vector3.up * 0.3f;
-            Fx.Impact(victim.transform.parent, mid, hitter.Color);
+            // efekt trafienia (gwiazdka, iskry, kamera, hit-stop) robi GameFeel.DashHit
             if (victim.Surface == null || Map == null) return;
             var stain = GroundStain(Map);
             if (stain.HasValue && Map.Id != MapId.Kitchen && Map.Id != MapId.Volcano)

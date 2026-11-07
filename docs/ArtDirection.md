@@ -277,7 +277,7 @@ Wysokość to suma: oczka (wklęsłe), mikro-szum, błoto (wypukłe), szron (wyp
 
 ### 3.7 Wydajność
 
-- **SRP Batcher:** wszystkie właściwości siedzą w jednym `UnityPerMaterial`. Renderery z `MaterialPropertyBlock` wypadają jednak z batchera. Przy 6 graczach i ok. 10 bryłach daje to ok. 60 osobnych draw calli, co na PC jest bez znaczenia. Gdyby kiedyś trzeba było 30+ postaci, maski przenosimy do `GraphicsBuffer` indeksowanego `unity_RendererUserValue` (`Renderer.SetShaderUserValue`) i wracamy do batchera.
+- **SRP Batcher:** wszystkie właściwości siedzą w jednym `UnityPerMaterial`. Od kroku 4 każdy ziemniak ma własne kopie materiałów (bez `MaterialPropertyBlock`), więc wszystkie części ciała zostają w SRP Batcherze (szczegóły w 4.3).
 - **ALU:** najdroższy jest Worley 3x3x3 (do 4 wywołań, gdy szron i zwęglenie są aktywne naraz). Maski są w `UNITY_BRANCH` zależnych od uniformów, więc gdy maska ma wartość 0, nie kosztuje nic. Na słabszy sprzęt: wariant z Worleyem 2x2x2 albo `shader_feature _PP_LOW` wyłączający szum skórki.
 - **Warianty:** forward ma ok. 4 × 2 × 2 × 5 × 2 × fog. Jeśli build za bardzo urośnie, warto dodać stripping (`IPreprocessShaders`) dla nieużywanych `_SHADOWS_SOFT_*`.
 
@@ -310,3 +310,35 @@ Sprawdzić, czy *Rendering Path* jest ustawiony na *Forward+* (ProjectSetup to w
 | Maski | Custom Function `PP_EvaluateMasks` → `Lerp`-i na Base Color, Smoothness i Emission |
 
 Zalecamy wersję HLSL: własny BRDF i tak wymaga Unlit Graph z Custom Function, a hand-written shader daje pełną kontrolę nad wariantami i przebiegami.
+
+## Krok 4: Game feel i wydajność (przebieg 1)
+
+### 4.1 Hierarchia sprzężenia zwrotnego trafienia zrywem
+
+Kolejność w jednej klatce (`Potato.OnCollisionEnter` → `GameFeel.DashHit`):
+
+| Warstwa | Gdzie | Wartości domyślne |
+|---|---|---|
+| Hit-stop | `GameFeel.HitStop` | 0.055 s + 0.045 s × moc, `timeScale` 0.03 (nie 0: cząsteczki pełzną). Kolejne trafienia w oknie 0.6 s: × 0.6ⁿ |
+| Drżenie ofiary | `Potato.HitShakeTime/Amplitude` | 0.12 s, 0.07 m, 55 Hz wzdłuż ciosu, czas rzeczywisty |
+| Zgniecenie kierunkowe | `Potato.JellyFrequency/Damping` | 4.2 Hz, ζ 0.26; wartość 0.12 + 0.24 × moc ustawiana od razu (widać ją w hit-stopie) |
+| Wgniecenie + siniak | `PotatoSurface.Impact`, `_ImpactDentScale` | sprężyna 6.5 Hz, ζ 0.3; wgniecenie 0.16 promienia; siniak +0.22 × siła, znika 0.035/s |
+| Kamera | `SharedCamera` | trauma 0.3 + 0.25 × moc (wstrząs = trauma²), odrzut 0.35–0.7 m (7.5 Hz, ζ 0.42), puls FOV −1.2…−2.8° |
+| Obraz | `Look.Punch` | aberracja 0.55 × puls, beczka −0.22 × puls, winieta +0.12 |
+| Cząsteczki | `Fx.Impact(…, dir, power)` | gwiazdka HDR 2.4 (przebija próg bloomu 0.95), snop 16–34 iskier w stożku 28°, pionowa fala, kurz, światło 0.14 s |
+
+Dlaczego tak: trauma² daje nieliniową skalę (muśnięcie ledwo widać, bomba rzuca kamerą), Perlin zamiast
+`Random.insideUnitSphere` to wstrząs, a nie migotanie obrazu, a kierunkowy odrzut mówi oku, w którą stronę poleciał cios.
+
+### 4.2 Skóra: SSS per kanał i kolorowy półcień
+
+- Wrap per kanał (czerwień 1.25, zieleń 0.75, niebieski 0.55 × `_WrapDiffuse`) zamiast jednego: terminator jest ciepły, nie szary.
+- Szerokość wrapu rośnie z krzywizną (`fwidth(N)/fwidth(P)` × `_CurvatureScale` 0.16): rączki i stopy świecą bardziej niż brzuch.
+- Półcień rzucony na skórę: `shadow^(1/(1 + scatter·(1.4, 0.45, 0.2)))`, czerwona krawędź cienia jak na prawdziwej skórze.
+- Wgniecenie (`PP_ApplyImpact`) działa we wszystkich przebiegach: cień i SSAO wginają się razem z postacią. Maski liczone z pozycji spoczynkowej, więc nie pływają.
+
+### 4.3 Wydajność
+
+- Ziemniak ma własne kopie materiałów zamiast `MaterialPropertyBlock`: renderer z MPB wypada z SRP Batchera, osobne materiały na tym samym wariancie są batchowane. Maski wysyłane tylko przy zmianie.
+- Jednorazowe efekty cząsteczkowe i błyski światła z puli (`StopAction.Disable`), krzywe i gradienty z pamięci podręcznej.
+- `Minigame.Alive` bez LINQ (własny enumerator), `AliveCount` pętlą, kamera bez `GetComponent` co klatkę, `Physics.reuseCollisionCallbacks`.
