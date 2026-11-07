@@ -204,6 +204,9 @@ namespace PotatoParty
             d.y = 0;
             if (d.sqrMagnitude < 0.01f) d = Vector3.right;
             p.Knock(d.normalized * power + Vector3.up * 5f, 0.7f);
+            // kuchenne przeszkody obsypują mąką
+            if (p.Surface != null) p.Surface.SplashMud(from, 0.3f, Shapes.Hex("#F3EBDD"));
+            Fx.Mist(Root, p.transform.position, Shapes.Hex("#FFF8EC"), 0.8f);
             AudioManager.Play(Sfx.Bump, 0.7f);
         }
 

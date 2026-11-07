@@ -158,11 +158,21 @@ namespace PotatoParty
                         pot.Linger = 0.8f;
                         AudioManager.Play(Sfx.Bump, 1f, 0.2f);
                         GM.Camera.Shake(pot.Kind == 2 ? 0.5f : 0.15f);
-                        Effects.Splash(Root, pot.Target + Vector3.up * 0.3f, pot.Kind == 1 ? Shapes.Hex("#FFD23F") : Shapes.Hex("#9AA7B2"));
+                        var soup = Shapes.Hex("#E3973A");
+                        if (pot.Kind == 1) Effects.Splash(Root, pot.Target + Vector3.up * 0.3f, Shapes.Hex("#FFD23F"));
+                        else
+                        {
+                            Fx.Splash(Root, pot.Target + Vector3.up * 0.3f, soup, 1.4f, 34);
+                            Fx.Dust(Root, pot.Target + Vector3.up * 0.1f, 1.6f, 12);
+                            Fx.Shockwave(Root, pot.Target + Vector3.up * 0.05f, new Color(1f, 1f, 1f, 0.8f), pot.Radius * 2.6f, 0.4f);
+                        }
                         foreach (var p in new List<Potato>(Alive))
                         {
                             var d = p.transform.position - pot.Target;
                             d.y = 0;
+                            // zupa chlapie na tych, którzy stali tuż obok
+                            if (pot.Kind != 1 && p.Surface != null && d.magnitude < pot.Radius + 2.2f && d.magnitude >= pot.Radius)
+                                p.Surface.SplashMud(pot.Target, Mathf.Lerp(0.45f, 0.15f, (d.magnitude - pot.Radius) / 2.2f), soup);
                             if (d.magnitude >= pot.Radius || p.transform.position.y >= 2.2f) continue;
                             if (pot.Kind == 1)
                             {

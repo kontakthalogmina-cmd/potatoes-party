@@ -330,33 +330,42 @@ namespace PotatoParty
             Burst(ps, 1);
         }
 
-        /// <summary>Obłoczek kurzu w kolorze podłoża mapy.</summary>
+        static ParticleSystem dustPool;
+
+        /// <summary>
+        /// Obłoczek kurzu w kolorze podłoża mapy. Jeden wspólny system na świat (Emit z parametrami),
+        /// bo kurz spod stóp leci kilka razy na sekundę od każdego gracza.
+        /// </summary>
         public static void Dust(Transform parent, Vector3 pos, float size = 1f, int count = 7)
         {
-            var ps = Make("Kurz", parent, pos, Tex.Smoke, false);
-            var m = ps.main;
-            m.startLifetime = new ParticleSystem.MinMaxCurve(0.45f, 0.8f);
-            m.startSpeed = new ParticleSystem.MinMaxCurve(0.8f * size, 2.4f * size);
-            m.startSize = new ParticleSystem.MinMaxCurve(0.35f * size, 0.7f * size);
-            m.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-            m.gravityModifier = -0.05f;
-            var shape = ps.shape;
-            shape.enabled = true;
-            shape.shapeType = ParticleSystemShapeType.Circle;
-            shape.radius = 0.25f * size;
-            shape.radiusThickness = 0f;
-            ps.transform.rotation = Quaternion.Euler(-90f, 0, 0);
-            var vel = ps.velocityOverLifetime; vel.enabled = true; vel.space = ParticleSystemSimulationSpace.World;
-            vel.y = new ParticleSystem.MinMaxCurve(0.3f, 0.9f);
-            vel.x = new ParticleSystem.MinMaxCurve(0f, 0f);
-            vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);
-            var lv = ps.limitVelocityOverLifetime; lv.enabled = true; lv.drag = 3f;
-            var sol = ps.sizeOverLifetime; sol.enabled = true; sol.size = Curve(0, 0.5f, 1, 1.4f);
-            var col = ps.colorOverLifetime; col.enabled = true;
+            if (dustPool == null)
+            {
+                dustPool = Make("Kurz (wspolny)", parent, Vector3.zero, Tex.Smoke, false, true);
+                var pm = dustPool.main;
+                pm.maxParticles = 800;
+                pm.gravityModifier = -0.05f;
+                var pe = dustPool.emission;
+                pe.rateOverTime = 0f;
+                var lv = dustPool.limitVelocityOverLifetime; lv.enabled = true; lv.drag = 3f;
+                var sol = dustPool.sizeOverLifetime; sol.enabled = true; sol.size = Curve(0, 0.5f, 1, 1.4f);
+                var col = dustPool.colorOverLifetime; col.enabled = true; col.color = Fade(Color.white, Color.white);
+                var rot = dustPool.rotationOverLifetime; rot.enabled = true; rot.z = new ParticleSystem.MinMaxCurve(-1f, 1f);
+                dustPool.Play();
+            }
             var d = DustColor;
-            col.color = Fade(new Color(d.r, d.g, d.b), Color.Lerp(new Color(d.r, d.g, d.b), Color.white, 0.3f));
-            m.startColor = new Color(1f, 1f, 1f, d.a);
-            Burst(ps, count);
+            var ep = new ParticleSystem.EmitParams();
+            for (int i = 0; i < count; i++)
+            {
+                float a = Random.value * Mathf.PI * 2f;
+                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                ep.position = pos + dir * 0.2f * size;
+                ep.velocity = dir * Random.Range(0.8f, 2.4f) * size + Vector3.up * Random.Range(0.4f, 1.1f);
+                ep.startSize = Random.Range(0.35f, 0.7f) * size;
+                ep.startLifetime = Random.Range(0.45f, 0.8f);
+                ep.rotation = Random.value * 360f;
+                ep.startColor = new Color(d.r, d.g, d.b, d.a);
+                dustPool.Emit(ep, 1);
+            }
         }
 
         /// <summary>Rozbryzg cieczy (woda, farba, błoto, zupa): kropelki z grawitacją + plama-pierścień.</summary>

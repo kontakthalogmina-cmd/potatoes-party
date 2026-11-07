@@ -78,6 +78,11 @@ namespace PotatoParty
                 if (!p.Grounded) continue;
                 int x, z;
                 if (!TileAt(p.transform.position, out x, out z)) continue;
+                if (owner[x, z] != p && p.Surface != null)
+                {
+                    // malując podłogę, ziemniak brudzi sobie stopy własną farbą
+                    p.Surface.SplashMud(p.transform.position + Vector3.down * 2f, 0.03f, Color.Lerp(p.Color, Color.white, 0.15f));
+                }
                 Paint(p, x, z);
             }
 
@@ -106,7 +111,14 @@ namespace PotatoParty
                             int x = cx + dx, z = cz + dz;
                             if (x >= 0 && z >= 0 && x < Grid && z < Grid && dx * dx + dz * dz <= 5) Paint(p, x, z);
                         }
-                    Effects.Splash(Root, paintBomb.position, p.Color);
+                    Fx.Splash(Root, paintBomb.position, p.Color, 1.8f, 50);
+                    Fx.Sparkle(Root, paintBomb.position, p.Color, 1.5f);
+                    foreach (var o in Alive)
+                    {
+                        if (o.Surface == null) continue;
+                        float dist = FlatDist(o.transform.position, paintBomb.position);
+                        if (dist < 4.5f) o.Surface.SplashMud(paintBomb.position, Mathf.Lerp(0.8f, 0.2f, dist / 4.5f), Color.Lerp(p.Color, Color.white, 0.15f));
+                    }
                     AudioManager.Play(Sfx.Explosion, 0.6f, 0.2f);
                     GM.Hud.Toast(p.Slot.Name + " rozlewa farbę!", p.Color);
                     Object.Destroy(paintBomb.gameObject);

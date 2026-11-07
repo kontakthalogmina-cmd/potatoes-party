@@ -88,6 +88,7 @@ namespace PotatoParty
                 if (p == null || p.Eliminated) continue;
                 if (p.transform.position.y < KillY)
                 {
+                    SkinFx.OnFall(p, Root);
                     if (FallEliminates) Eliminate(p, true);
                     else Respawn(p);
                 }

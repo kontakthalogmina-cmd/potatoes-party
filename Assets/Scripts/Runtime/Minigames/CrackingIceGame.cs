@@ -200,6 +200,7 @@ namespace PotatoParty
                 {
                     state = 2;
                     transform.localPosition = home;
+                    Fx.FrostBurst(transform.parent, transform.position + Vector3.up * 0.4f, 0.7f);
                     var rb = gameObject.AddComponent<Rigidbody>();
                     rb.mass = 5f;
                     rb.AddTorque(Random.insideUnitSphere * 3f, ForceMode.VelocityChange);

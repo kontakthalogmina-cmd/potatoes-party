@@ -13,6 +13,7 @@ namespace PotatoParty
     {
         static readonly int MudAmountId = Shader.PropertyToID("_MudAmount");
         static readonly int MudDirId = Shader.PropertyToID("_MudDir");
+        static readonly int MudColorId = Shader.PropertyToID("_MudColor");
         static readonly int FrostAmountId = Shader.PropertyToID("_FrostAmount");
         static readonly int BurnAmountId = Shader.PropertyToID("_BurnAmount");
         static readonly int BurnHeatId = Shader.PropertyToID("_BurnHeat");
@@ -49,6 +50,11 @@ namespace PotatoParty
         Vector4 burnDir = new Vector4(0, 0, 1, 0);
         float mudAge;
 
+        /// <summary>Domyślny kolor błota (taki jak w shaderze).</summary>
+        public static readonly Color DefaultMud = new Color(0.27f, 0.18f, 0.11f, 1f);
+        /// <summary>Kolor "błota": ziemia, piasek, farba, zupa, mąka – ta sama maska, inny kolor.</summary>
+        public Color MudColor = DefaultMud;
+
         public void Init(Transform root, IEnumerable<Renderer> parts)
         {
             Root = root;
@@ -63,16 +69,42 @@ namespace PotatoParty
         /// <summary>Rozbryzg błota z punktu w świecie (np. wybuch fałszywego złota, kałuża).</summary>
         public void SplashMud(Vector3 fromWorld, float amount)
         {
+            SplashMud(fromWorld, amount, DefaultMud);
+        }
+
+        /// <summary>
+        /// Rozbryzg w dowolnym kolorze (farba, zupa, piasek, mąka). Świeża plama przejmuje kolor
+        /// proporcjonalnie do swojej siły, więc kolejne trafienia różnymi kolorami mieszają się.
+        /// </summary>
+        public void SplashMud(Vector3 fromWorld, float amount, Color color)
+        {
+            float before = Mud;
             Mud = Mathf.Clamp01(Mud + amount);
+            float k = before < 0.05f ? 1f : Mathf.Clamp01(amount / Mathf.Max(0.01f, Mud));
+            MudColor = Color.Lerp(MudColor, color, k);
             mudDir = ToRootDir(fromWorld, 0.8f);
             mudAge = 0f;
+        }
+
+        /// <summary>Kąpiel: woda zmywa błoto i trochę sadzy.</summary>
+        public void Wash(float amount = 1f)
+        {
+            Mud = Mathf.MoveTowards(Mud, 0f, amount);
+            Burn = Mathf.MoveTowards(Burn, 0f, amount * 0.5f);
+            Heat = 0f;
         }
 
         /// <summary>Zwęglenie od wybuchu w punkcie świata. Żar na krawędzi gaśnie szybko, sadza zostaje dłużej.</summary>
         public void Scorch(Vector3 explosionWorld, float amount)
         {
+            Scorch(explosionWorld, amount, 1f);
+        }
+
+        /// <summary>Zwęglenie z kontrolą żaru (0 = sama sadza, 1 = świecąca krawędź).</summary>
+        public void Scorch(Vector3 explosionWorld, float amount, float heat)
+        {
             Burn = Mathf.Clamp01(Burn + amount);
-            Heat = 1f;
+            Heat = Mathf.Max(Heat, heat);
             burnDir = ToRootDir(explosionWorld, 0.85f);
         }
 
@@ -82,7 +114,7 @@ namespace PotatoParty
         /// <summary>Krótki biały błysk po trafieniu.</summary>
         public void HitFlash(float amount = 1f) { Flash = Mathf.Max(Flash, Mathf.Clamp01(amount)); }
 
-        public void Clear() { Mud = Frost = Burn = Heat = Flash = 0f; FrostTarget = 0f; }
+        public void Clear() { Mud = Frost = Burn = Heat = Flash = 0f; FrostTarget = 0f; MudColor = DefaultMud; }
 
         // Kierunek w przestrzeni postaci zapamiętany w chwili trafienia: plama "przykleja się" do ciała
         // i obraca razem z ziemniakiem, zamiast zawsze patrzeć na miejsce wybuchu.
@@ -120,6 +152,7 @@ namespace PotatoParty
             block.SetFloat(UseRootId, 1f);
             block.SetFloat(MudAmountId, Mud);
             block.SetVector(MudDirId, mudDir);
+            block.SetColor(MudColorId, MudColor);
             block.SetFloat(FrostAmountId, Frost);
             block.SetFloat(BurnAmountId, Burn);
             block.SetFloat(BurnHeatId, Heat * Mathf.Clamp01(Burn * 2f));

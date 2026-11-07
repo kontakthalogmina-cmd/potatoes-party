@@ -49,6 +49,10 @@ namespace PotatoParty
                 radial.y = 0;
                 var tangent = Vector3.Cross(Vector3.up, radial.sqrMagnitude > 0.01f ? radial.normalized : Vector3.forward) * Mathf.Sign(rotor.Speed);
                 p.Knock(tangent * 9f + radial.normalized * 7f + Vector3.up * 6f, 0.9f);
+                // rozżarzona belka przypala skórkę od strony uderzenia
+                if (p.Surface != null) p.Surface.Scorch(p.transform.position - tangent, 0.45f);
+                Fx.Embers(Root, p.transform.position, 1f, 16);
+                Fx.Sparks(Root, p.transform.position + Vector3.up * 0.3f, new Color(1f, 0.55f, 0.2f), 18, 8f, 0.6f);
                 AudioManager.Play(Sfx.Bump, 0.9f);
                 GM.Camera.Shake(0.25f);
             });

@@ -192,6 +192,7 @@ namespace PotatoParty
             {
                 Surface = gameObject.AddComponent<PotatoSurface>();
                 Surface.Init(Visual, heroParts);
+                SkinFx.Configure(this);
             }
             blinkTimer = Random.Range(1.5f, 4f);
         }
@@ -291,6 +292,8 @@ namespace PotatoParty
             Visual.localPosition = new Vector3(0, bob + (VisualScale - 1f) * 0.72f, 0);
             Visual.localScale = new Vector3(baseVisualScale.x * (1 + sq - stretch * 0.5f), baseVisualScale.y * (1 - sq + stretch), baseVisualScale.z * (1 + sq - stretch * 0.5f));
             AnimateLimbs(speed, vy);
+            Trail(speed);
+            SkinFx.Tick(this, Time.deltaTime);
             if (tumbleSpeed != 0f)
             {
                 tumble += tumbleSpeed * Time.deltaTime;
@@ -306,6 +309,19 @@ namespace PotatoParty
             bool showDizzy = stunTimer > 0.25f && !Eliminated && Visual.gameObject.activeSelf;
             if (dizzy.gameObject.activeSelf != showDizzy) dizzy.gameObject.SetActive(showDizzy);
             if (showDizzy) dizzy.localRotation = Quaternion.Euler(0, Time.time * 400f, 0);
+        }
+
+        float stepTimer;
+
+        /// <summary>Kurz spod stóp przy szybkim biegu i smuga za zrywem.</summary>
+        void Trail(float speed)
+        {
+            if (!Grounded || Eliminated || !Visual.gameObject.activeSelf) return;
+            stepTimer -= Time.deltaTime;
+            if (stepTimer > 0f) return;
+            var feetPos = transform.position + Vector3.down * (HalfHeight - 0.08f);
+            if (IsDashing) { Fx.Dust(transform.parent, feetPos, 0.55f, 3); stepTimer = 0.05f; }
+            else if (speed > 6f) { Fx.Dust(transform.parent, feetPos, 0.35f, 2); stepTimer = 0.28f; }
         }
 
         void AnimateLimbs(float speed, float vy)
@@ -417,10 +433,11 @@ namespace PotatoParty
             bool was = Grounded;
             Grounded = Physics.SphereCast(Body.position, 0.38f, Vector3.down, out hit, HalfHeight - 0.38f + 0.12f, mask, QueryTriggerInteraction.Ignore);
             GroundCollider = Grounded ? hit.collider : null;
-            if (Grounded && !was && Phys.GetVelocity(Body).y < -4f)
+            float vy = Phys.GetVelocity(Body).y;
+            if (Grounded && !was && vy < -4f)
             {
                 squash = 0.45f;
-                Effects.Puff(transform.parent, hit.point + Vector3.up * 0.1f, 0.9f);
+                SkinFx.OnLand(this, hit.point + Vector3.up * 0.1f, -vy);
             }
         }
 
@@ -436,6 +453,7 @@ namespace PotatoParty
                 if (dir.sqrMagnitude < 0.001f) dir = Facing;
                 dir.Normalize();
                 other.Knock(dir * DashPower + Vector3.up * 3.5f, 0.55f);
+                SkinFx.OnHit(other, this);
                 // Odbicie uderzającego, żeby nie "wjeżdżał" w przeciwnika
                 Knock(-dir * 3f, 0.15f);
                 AudioManager.Play(Sfx.Bump, 0.8f);

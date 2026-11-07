@@ -207,6 +207,8 @@ namespace PotatoParty
             v.y = 0;
             if (v.magnitude < 2f) return;
             p.Knock(v * 0.9f * Power + Vector3.up * 5f, 0.7f);
+            if (p.Surface != null && SkinFx.Map != null && SkinFx.Map.Id == MapId.Kitchen) p.Surface.SplashMud(transform.position, 0.25f, Shapes.Hex("#F3EBDD"));
+            Fx.Impact(p.transform.parent, Vector3.Lerp(p.transform.position, transform.position, 0.5f), Color.white);
             AudioManager.Play(Sfx.Bump, 0.8f);
         }
     }
