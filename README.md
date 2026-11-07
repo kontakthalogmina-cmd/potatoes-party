@@ -45,8 +45,13 @@ ESC, P albo Start na padzie: pauza. W lobby dołączasz, wciskając skok lub akc
   - *Ucieczka przed Kombajnem* (Pole kukurydzy) — kombajn goni najbliższego.
   - *Labirynt w Ogrodzie* — za każdym razem inny labirynt, pierwszy przy wyjściu wygrywa.
 - **Wygląd:** jasny, słoneczny i schludny: niebo z gradientem, miękkie cienie, lekki bloom, woda pod areną, chmurki i kilka balonów w tle. Czcionki: Titan One (tytuły, przyciski) i Varela Round (zwykły tekst), licencja OFL.
+- **Styl „Aksamitna Bulwa”:** ziemniaki mają własny shader (`Assets/Shaders/PotatoHero`): aksamitny meszek na krawędziach, ciepły miąższ prześwitujący pod światło (fake SSS), kontur, który zawsze odcina postać od tła, oraz błoto, szron i przypalenia na skórce sterowane z minigier. Opis stylu i logiki shadera: [`docs/ArtDirection.md`](docs/ArtDirection.md).
 - **Ziemniaczki z charakterem:** gładkie, błyszczące ciało, wielkie oczy, mruganie, miny (przerażone „O” przy upadku), rączki w rękawiczkach, tupiące nóżki, kiełek na czubku i pierścień w kolorze gracza pod stopami.
-- **Efekty:** konfetti przy wygranej, golu i na mecie, deszcz konfetti na podium, obłoczki kurzu przy skoku i lądowaniu.
+- **9 skórek do wyboru:** Klasyk, Rumiana Bulwa, Vitelotte (paski), Krówka (łaty), Złota Bulwa (metal z brokatem), Magmowa (świecące pęknięcia), Kosmiczna (gwiazdy i mgławice), Ninja i Szronik, każda z własnym dodatkiem (kapelusz, czapka, okulary, rogi, pierścień planety, nauszniki…). Skórkę zmieniasz w lobby strzałkami `< nazwa >` przy graczu albo wbiegając na podest w **Garderobie** na placu. Wybór zapamiętuje się dla danego koloru gracza, a boty losują wolne skórki.
+- **Skórka reaguje na świat:** błoto, piasek lub mąka na stopach po lądowaniu (kolor zależy od mapy), plamy po zderzeniach, szron na lodzie, przypieczone stopy na wulkanie, zwęglenie w lawie, kąpiel i zmycie brudu po wpadnięciu do wody, farba w *Malarzach*, zupa w *Deszczu Garnków*, słoma od kombajnu.
+- **Efekty:** cząsteczki z proceduralnymi teksturami: wybuchy z falą uderzeniową i błyskiem światła, iskry, plusk wody, kurz w kolorze podłoża, gwiazdki trafienia, szron, żar, konfetti. Każda mapa ma żywe tło: śnieg, popiół i żar, świetliki, spadające liście i płatki, pyłki, refleksy na wodzie.
+- **Duża plansza:** menu, lobby i podium dzieją się na dużym placu imprezowym (mozaika, girlandy żarówek, latarnie, fontanna, rabaty kwiatów, Garderoba z manekinami). Mapy mają gęstą trawę, kwiaty, kamienie i zaspy, a na horyzoncie wzgórza, szczyty lub dymiący wulkan.
+- **Światło i obraz:** trzy światła (słońce, wypełnienie, kontra), 4 kaskady cieni, SSAO, sonda odbić, osobny grading kolorów dla każdej mapy (bloom, white balance, split toning, winieta), rozmycie tła w menu.
 - **Interfejs:** białe karty, granatowy tekst, wypukłe kolorowe przyciski i sprężyste animacje okienek. W grze: nazwa minigry u góry, karty graczy na dole i okrągły licznik czasu w rogu.
 - **Więcej zabawy:** po mocnym uderzeniu ziemniak robi fikołka i widzi gwiazdki, lider nosi koronę, a w każdej minigrze jest jakaś niespodzianka (fałszywe złoto, fałszywe drzwi, gumowe kaczki, zawracająca belka, kombajn, który zmienia ofiarę…).
 - **Finał:** ostatnia minigra meczu daje podwójne punkty.
@@ -63,9 +68,9 @@ Kod jest przygotowany na tryb online: wystarczy dopisać implementację `ILobbyS
 
 ```
 Assets/Scripts/Runtime/Core       – GameManager (przebieg gry), dane, sterowanie, lobby
-Assets/Scripts/Runtime/Gameplay   – ziemniaczek gracza, wspólna kamera, efekty
+Assets/Scripts/Runtime/Gameplay   – ziemniaczek gracza, skórki (PotatoSkins), efekty (Fx, SkinFx), kamera, oświetlenie
 Assets/Scripts/Runtime/Minigames  – 12 minigier i ich wspólna baza
-Assets/Scripts/Runtime/Maps       – 12 map (scenerii) i ich dekoracje
+Assets/Scripts/Runtime/Maps       – 12 map (scenerii), plac imprezowy z Garderobą (Hub), roślinność i horyzont (Scatter)
 Assets/Scripts/Runtime/UI         – menu, lobby, HUD, ekran ładowania
 Assets/Scripts/Runtime/Audio      – syntezator muzyki i efektów
 Assets/Scripts/Editor             – automatyczna konfiguracja projektu

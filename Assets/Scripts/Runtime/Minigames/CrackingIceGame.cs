@@ -59,6 +59,8 @@ namespace PotatoParty
         {
             // Na płytach trzeba precyzji, więc lód jest tu trochę mniej śliski
             p.Grip = Mathf.Max(p.Grip, 0.6f);
+            // na mrozie skórka powoli łapie szron
+            if (p.Surface != null) p.Surface.FrostTarget = 0.35f;
         }
 
         public override Vector3 SpawnPoint(int i, int n)
@@ -198,6 +200,7 @@ namespace PotatoParty
                 {
                     state = 2;
                     transform.localPosition = home;
+                    Fx.FrostBurst(transform.parent, transform.position + Vector3.up * 0.4f, 0.7f);
                     var rb = gameObject.AddComponent<Rigidbody>();
                     rb.mass = 5f;
                     rb.AddTorque(Random.insideUnitSphere * 3f, ForceMode.VelocityChange);

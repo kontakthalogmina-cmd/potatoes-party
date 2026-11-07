@@ -75,7 +75,9 @@ namespace PotatoParty
                 Score[p] = Mathf.Max(0, Score[p] - 2);
                 p.Knock(Vector3.up * 7f, 0.8f);
                 AudioManager.Play(Sfx.Explosion, 0.5f, 0.1f);
-                Effects.Splash(Root, coin.transform.position, Shapes.Hex("#7A6A3A"));
+                Fx.MudSplat(Root, coin.transform.position, Shapes.Hex("#5A3E26"));
+                // fałszywe złoto wybucha błotem: ziemniak zostaje ochlapany od strony monety
+                if (p.Surface != null) p.Surface.SplashMud(coin.transform.position, 0.7f);
                 GM.Hud.Toast(p.Slot.Name + " złapał fałszywe złoto! -2", p.Color);
             }
             else

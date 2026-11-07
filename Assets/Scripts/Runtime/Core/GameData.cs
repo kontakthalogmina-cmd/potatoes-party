@@ -18,6 +18,10 @@ namespace PotatoParty
         public int DeviceId; // numer schematu klawiatury albo id pada
         public int Points;
         public int Wins;
+        /// <summary>Indeks skórki z <see cref="PotatoSkins.All"/>.</summary>
+        public int Skin;
+
+        public PotatoSkin SkinData { get { return PotatoSkins.Get(Skin); } }
 
         public bool IsBot { get { return Kind == ControlKind.Bot; } }
 

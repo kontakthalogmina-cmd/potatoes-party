@@ -19,7 +19,7 @@ namespace PotatoParty.EditorTools
         const string ScenePath = "Assets/Scenes/PotatoesParty.unity";
         const string SettingsDir = "Assets/Settings";
         const string ResourcesDir = "Assets/Resources/PotatoParty";
-        const string DoneKey = "PotatoParty.SetupDone.v4";
+        const string DoneKey = "PotatoParty.SetupDone.v6";
 
         static ProjectSetup()
         {
@@ -109,7 +109,9 @@ namespace PotatoParty.EditorTools
             SetFloat(so, "m_RenderScale", 1f);
             SetBool(so, "m_SupportsHDR", true);
             SetFloat(so, "m_ShadowDistance", 70f);
-            SetInt(so, "m_ShadowCascadeCount", 2);
+            SetInt(so, "m_ShadowCascadeCount", 4);
+            SetBool(so, "m_RequireDepthTexture", true);
+            SetInt(so, "m_SoftShadowQuality", 3); // wysokie (URP 17)
             SetInt(so, "m_MainLightShadowmapResolution", 4096);
             SetBool(so, "m_MainLightShadowsSupported", true);
             SetBool(so, "m_SoftShadowsSupported", true);
@@ -154,10 +156,60 @@ namespace PotatoParty.EditorTools
                     EditorUtility.SetDirty(renderer);
                     Debug.Log("[Potatoes Party] Włączono renderowanie Forward+ (dużo świateł na scenie).");
                 }
+                EnsureSsao(renderer);
                 if (renderer.postProcessData != null) continue;
                 renderer.postProcessData = data;
                 EditorUtility.SetDirty(renderer);
                 Debug.Log("[Potatoes Party] Włączono efekty obrazu (bloom, kolory, wygładzanie krawędzi).");
+            }
+        }
+
+        /// <summary>
+        /// Ambient Occlusion w przestrzeni ekranu (SSAO): miękkie przyciemnienia w zagłębieniach
+        /// i pod postaciami. Klasa funkcji renderera jest w URP, ale tworzymy ją przez refleksję,
+        /// żeby skrypt kompilował się niezależnie od jej widoczności w danej wersji pakietu.
+        /// </summary>
+        static void EnsureSsao(UniversalRendererData renderer)
+        {
+            try
+            {
+                foreach (var f in renderer.rendererFeatures)
+                    if (f != null && f.GetType().Name == "ScreenSpaceAmbientOcclusion") return;
+                var type = typeof(UniversalRendererData).Assembly.GetType("UnityEngine.Rendering.Universal.ScreenSpaceAmbientOcclusion");
+                if (type == null) return;
+                var feature = ScriptableObject.CreateInstance(type) as ScriptableRendererFeature;
+                if (feature == null) return;
+                feature.name = "SSAO";
+                AssetDatabase.AddObjectToAsset(feature, renderer);
+                renderer.rendererFeatures.Add(feature);
+
+                // ustawienia: delikatne, miękkie AO pasujące do jasnego stylu
+                var fso = new SerializedObject(feature);
+                SetFloat(fso, "m_Settings.Intensity", 0.6f);
+                SetFloat(fso, "m_Settings.Radius", 0.35f);
+                SetFloat(fso, "m_Settings.DirectLightingStrength", 0.2f);
+                SetBool(fso, "m_Settings.Downsample", false);
+                fso.ApplyModifiedPropertiesWithoutUndo();
+
+                // mapa funkcji renderera musi zgadzać się z listą (inaczej URP zgłasza niespójność)
+                var rso = new SerializedObject(renderer);
+                var map = rso.FindProperty("m_RendererFeatureMap");
+                string guid;
+                long localId;
+                if (map != null && AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out guid, out localId))
+                {
+                    map.arraySize++;
+                    map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
+                    rso.ApplyModifiedPropertiesWithoutUndo();
+                }
+                renderer.SetDirty();
+                EditorUtility.SetDirty(renderer);
+                AssetDatabase.SaveAssets();
+                Debug.Log("[Potatoes Party] Włączono SSAO (miękkie cienie kontaktowe).");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[Potatoes Party] Nie udało się dodać SSAO: " + e.Message);
             }
         }
 
@@ -169,6 +221,27 @@ namespace PotatoParty.EditorTools
         {
             MakeMaterial(ResourcesDir + "/BaseLit.mat", "Universal Render Pipeline/Lit");
             MakeMaterial(ResourcesDir + "/BaseStandard.mat", "Standard");
+            // materiał cząsteczek w Resources: shader URP Particles/Unlit trafia do buildu
+            MakeMaterial(ResourcesDir + "/ParticleUnlit.mat", "Universal Render Pipeline/Particles/Unlit");
+            EnsureHeroMaterial();
+        }
+
+        /// <summary>
+        /// Materiał wzorcowy shadera bohatera w Resources: dzięki niemu shader trafia do buildu
+        /// (Shader.Find w buildzie widzi tylko shadery, do których coś się odwołuje).
+        /// </summary>
+        static void EnsureHeroMaterial()
+        {
+            string path = ResourcesDir + "/PotatoHero.mat";
+            if (AssetDatabase.LoadAssetAtPath<Material>(path) != null) return;
+            var shader = Shader.Find("PotatoParty/PotatoHero");
+            if (shader == null)
+            {
+                Debug.LogWarning("[Potatoes Party] Nie znaleziono shadera PotatoParty/PotatoHero – ziemniaki użyją URP Lit.");
+                return;
+            }
+            AssetDatabase.CreateAsset(new Material(shader) { name = "PotatoHero" }, path);
+            Debug.Log("[Potatoes Party] Utworzono materiał shadera bohatera ziemniaka.");
         }
 
         static void MakeMaterial(string path, string shaderName)

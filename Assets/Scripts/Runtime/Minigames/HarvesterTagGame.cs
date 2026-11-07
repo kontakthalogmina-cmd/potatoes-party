@@ -196,6 +196,8 @@ namespace PotatoParty
                     if (Mathf.Abs(local.x) < HalfW && local.z > -HalfL && local.z < HalfL + 0.3f && local.y < 2.5f)
                     {
                         Effects.Explosion(Root, p.transform.position, 0.8f);
+                        Fx.MudSplat(Root, p.transform.position, Shapes.Hex("#7A5B35"));
+                        Fx.Splash(Root, p.transform.position + Vector3.up * 0.5f, Shapes.Hex("#E8C35A"), 1.2f, 26);
                         GM.Camera.Shake(0.3f);
                         Eliminate(p, false, " wpada pod kombajn!");
                     }

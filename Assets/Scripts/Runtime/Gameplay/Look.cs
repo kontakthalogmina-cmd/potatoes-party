@@ -11,13 +11,26 @@ namespace PotatoParty
     public static class Look
     {
         static Volume volume;
+        static Bloom bloom;
+        static ColorAdjustments colorAdj;
+        static WhiteBalance whiteBalance;
+        static SplitToning splitToning;
+        static DepthOfField dof;
+        static Vignette vignette;
+        static Light fill, rimLight;
+        static ReflectionProbe probe;
 
         public static void Setup(Camera cam, Light sun)
         {
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.5f;
+            sun.shadowStrength = 0.55f;
             sun.shadowBias = 0.04f;
             sun.shadowNormalBias = 0.3f;
+
+            // Oświetlenie trzypunktowe: słońce (klucz) + chłodne wypełnienie z naprzeciwka + ciepła kontra od tyłu.
+            // Bez cieni – tanie, a postacie i dekoracje dostają objętość i czytelną sylwetkę.
+            fill = ExtraDirectional("Wypelnienie", sun.transform.parent, Quaternion.Euler(28f, 150f, 0f), Shapes.Hex("#9FC4FF"), 0.28f);
+            rimLight = ExtraDirectional("Kontra", sun.transform.parent, Quaternion.Euler(18f, 200f, 0f), Shapes.Hex("#FFE2B8"), 0.35f);
 
             try
             {
@@ -26,9 +39,10 @@ namespace PotatoParty
                 {
                     urp.msaaSampleCount = 4;
                     urp.renderScale = 1f;
-                    urp.shadowDistance = 70f;
-                    urp.shadowCascadeCount = 2;
+                    urp.shadowDistance = 80f;
+                    urp.shadowCascadeCount = 4;
                     urp.supportsHDR = true;
+                    urp.supportsCameraDepthTexture = true;
                 }
                 cam.allowMSAA = true;
                 cam.allowHDR = true;
@@ -38,6 +52,9 @@ namespace PotatoParty
                     data.renderPostProcessing = true;
                     data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
                     data.antialiasingQuality = AntialiasingQuality.High;
+                    data.dithering = true;      // bez pasków w gradientach nieba i mgły
+                    data.stopNaN = true;
+                    data.requiresDepthTexture = true;
                 }
                 BuildVolume(cam.transform.parent);
             }
@@ -58,22 +75,133 @@ namespace PotatoParty
             var profile = ScriptableObject.CreateInstance<VolumeProfile>();
             volume.sharedProfile = profile;
 
-            var bloom = profile.Add<Bloom>(true);
-            bloom.threshold.Override(1.0f);
-            bloom.intensity.Override(0.35f);
-            bloom.scatter.Override(0.6f);
+            bloom = profile.Add<Bloom>(true);
+            bloom.threshold.Override(0.95f);
+            bloom.intensity.Override(0.45f);
+            bloom.scatter.Override(0.68f);
+            bloom.highQualityFiltering.Override(true);
+            bloom.tint.Override(new Color(1f, 0.95f, 0.88f));
 
             var tone = profile.Add<Tonemapping>(true);
             tone.mode.Override(TonemappingMode.Neutral);
 
-            var color = profile.Add<ColorAdjustments>(true);
-            color.postExposure.Override(0.1f);
-            color.contrast.Override(6f);
-            color.saturation.Override(12f);
+            colorAdj = profile.Add<ColorAdjustments>(true);
+            colorAdj.postExposure.Override(0.12f);
+            colorAdj.contrast.Override(8f);
+            colorAdj.saturation.Override(14f);
 
-            var vig = profile.Add<Vignette>(true);
-            vig.intensity.Override(0.12f);
-            vig.smoothness.Override(0.6f);
+            whiteBalance = profile.Add<WhiteBalance>(true);
+            whiteBalance.temperature.Override(0f);
+            whiteBalance.tint.Override(0f);
+
+            // delikatny "filmowy" podział tonów: chłodne cienie, ciepłe światła
+            splitToning = profile.Add<SplitToning>(true);
+            splitToning.shadows.Override(new Color(0.42f, 0.47f, 0.62f));
+            splitToning.highlights.Override(new Color(0.62f, 0.55f, 0.45f));
+            splitToning.balance.Override(10f);
+
+            // głębia ostrości: tylko w menu i lobby (rozmyte, dalekie tło), w grze wyłączona dla czytelności
+            dof = profile.Add<DepthOfField>(true);
+            dof.mode.Override(DepthOfFieldMode.Off);
+            dof.gaussianStart.Override(32f);
+            dof.gaussianEnd.Override(70f);
+            dof.gaussianMaxRadius.Override(1.2f);
+            dof.highQualitySampling.Override(true);
+
+            // "Aksamitna Bulwa": cienie lekko chłodne i fioletowe (nigdy szare), światła ciepłe.
+            // Kontrast temperatur zamiast kontrastu jasności – ziemniaki odcinają się od tła bez ciemnych cieni.
+            var smh = profile.Add<ShadowsMidtonesHighlights>(true);
+            smh.shadows.Override(new Vector4(0.94f, 0.94f, 1.08f, 0f));
+            smh.midtones.Override(new Vector4(1f, 1f, 1f, 0f));
+            smh.highlights.Override(new Vector4(1.04f, 1.01f, 0.95f, 0f));
+            smh.shadowsStart.Override(0f);
+            smh.shadowsEnd.Override(0.3f);
+            smh.highlightsStart.Override(0.55f);
+            smh.highlightsEnd.Override(1f);
+
+            vignette = profile.Add<Vignette>(true);
+            vignette.intensity.Override(0.16f);
+            vignette.smoothness.Override(0.55f);
+            vignette.color.Override(Shapes.Hex("#1B1440"));
+        }
+
+        static Light ExtraDirectional(string name, Transform parent, Quaternion rot, Color c, float intensity)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.rotation = rot;
+            var l = go.AddComponent<Light>();
+            l.type = LightType.Directional;
+            l.color = c;
+            l.intensity = intensity;
+            l.shadows = LightShadows.None;
+            return l;
+        }
+
+        /// <summary>Rozmyte tło (menu, lobby, podium) albo ostry obraz w grze.</summary>
+        public static void SetBackgroundBlur(bool on, float start = 30f, float end = 70f)
+        {
+            if (dof == null) return;
+            dof.mode.Override(on ? DepthOfFieldMode.Gaussian : DepthOfFieldMode.Off);
+            dof.gaussianStart.Override(start);
+            dof.gaussianEnd.Override(end);
+        }
+
+        /// <summary>Gradacja kolorów dopasowana do mapy: temperatura, nasycenie, kolor poświaty.</summary>
+        public static void Grade(MapTheme t)
+        {
+            if (colorAdj == null) return;
+            float temp = 0f, tint = 0f, sat = 14f, contrast = 8f, exposure = 0.12f, bloomI = 0.45f;
+            switch (t.Id)
+            {
+                case MapId.Ice: temp = -14f; sat = 6f; exposure = 0.05f; bloomI = 0.6f; break;
+                case MapId.Volcano: temp = 14f; tint = 4f; sat = 18f; contrast = 14f; exposure = 0f; bloomI = 0.75f; break;
+                case MapId.Cornfield: temp = 12f; sat = 16f; break;
+                case MapId.Beach: temp = 4f; sat = 18f; exposure = 0.18f; break;
+                case MapId.Forest: temp = -4f; tint = -6f; sat = 12f; break;
+                case MapId.Kitchen: temp = 8f; sat = 10f; break;
+                case MapId.Canteen: temp = -2f; sat = 8f; break;
+                case MapId.Garden: tint = 4f; sat = 16f; break;
+                case MapId.Orchard: temp = 6f; sat = 16f; break;
+            }
+            whiteBalance.temperature.Override(temp);
+            whiteBalance.tint.Override(tint);
+            colorAdj.saturation.Override(sat);
+            colorAdj.contrast.Override(contrast);
+            colorAdj.postExposure.Override(exposure);
+            bloom.intensity.Override(bloomI);
+            bloom.tint.Override(Color.Lerp(Color.white, t.Glow, 0.25f));
+            if (fill != null) fill.color = Color.Lerp(Shapes.Hex("#9FC4FF"), t.Sky, 0.4f);
+            if (rimLight != null) rimLight.color = Color.Lerp(Shapes.Hex("#FFE2B8"), t.Glow, 0.35f);
+            if (rimLight != null) rimLight.intensity = t.Id == MapId.Volcano ? 0.6f : 0.35f;
+        }
+
+        /// <summary>
+        /// Odbicia otoczenia: jedna sonda nad areną renderowana raz po zbudowaniu mapy, więc błyszczące
+        /// materiały (lód, metal złotej bulwy, mokre błoto) odbijają prawdziwe niebo i dekoracje.
+        /// </summary>
+        public static void RefreshReflections(Transform world)
+        {
+            if (world == null) return;
+            if (probe == null)
+            {
+                var go = new GameObject("Sonda odbic");
+                go.transform.SetParent(world.parent, false);
+                probe = go.AddComponent<ReflectionProbe>();
+                probe.mode = ReflectionProbeMode.Realtime;
+                probe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
+                probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;
+                probe.resolution = 128;
+                probe.hdr = true;
+                probe.boxProjection = false;
+                probe.size = new Vector3(400f, 200f, 400f);
+                probe.importance = 1;
+                probe.intensity = 1f;
+                probe.nearClipPlane = 0.5f;
+                probe.farClipPlane = 250f;
+            }
+            probe.transform.position = new Vector3(0f, 4f, 0f);
+            probe.RenderProbe();
         }
 
         /// <summary>Jasne, miękkie światło otoczenia z trzech stron (niebo / horyzont / ziemia).</summary>
@@ -112,11 +240,12 @@ namespace PotatoParty
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = horizon;
-            RenderSettings.fogStartDistance = 70f;
-            RenderSettings.fogEndDistance = 170f;
+            RenderSettings.fogStartDistance = 60f;
+            RenderSettings.fogEndDistance = 190f;
             sun.color = t.SunColor;
             sun.intensity = t.SunIntensity * 1.1f;
             sun.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            Grade(t);
         }
 
         /// <summary>Puchate chmurki krążące powoli wysoko nad mapą.</summary>
