@@ -11,6 +11,10 @@ namespace PotatoParty
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Start()
         {
+            // Jeden obiekt Collision na wszystkie OnCollisionEnter (zamiast nowego przy każdym zderzeniu):
+            // 6 ziemniaków + piłka + przeszkody = dziesiątki alokacji na sekundę mniej.
+            // Bezpieczne, bo nigdzie nie przechowujemy obiektu Collision poza callbackiem.
+            Physics.reuseCollisionCallbacks = true;
             GameManager.EnsureExists();
         }
     }

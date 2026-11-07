@@ -17,6 +17,10 @@ namespace PotatoParty
         static SplitToning splitToning;
         static DepthOfField dof;
         static Vignette vignette;
+        static ChromaticAberration chroma;
+        static LensDistortion lens;
+        static Spring punch;
+        static float vignetteBase = 0.16f;
         static Light fill, rimLight;
         static ReflectionProbe probe;
 
@@ -123,6 +127,49 @@ namespace PotatoParty
             vignette.intensity.Override(0.16f);
             vignette.smoothness.Override(0.55f);
             vignette.color.Override(Shapes.Hex("#1B1440"));
+
+            // Puls trafienia: aberracja i beczka 0 w spoczynku = efekty wyłączone w uber-shaderze (zero kosztu),
+            // włączają się tylko na ~0.2 s po mocnym ciosie (Look.Punch).
+            chroma = profile.Add<ChromaticAberration>(true);
+            chroma.intensity.Override(0f);
+            lens = profile.Add<LensDistortion>(true);
+            lens.intensity.Override(0f);
+            lens.scale.Override(1f);
+        }
+
+        /// <summary>
+        /// Puls obrazu po trafieniu (0..1): aberracja chromatyczna, lekka "beczka" i przyciemnienie rogów.
+        /// Sprężyna z przestrzałem: obraz najpierw się "zasysa", potem minimalnie odbija.
+        /// </summary>
+        public static void Punch(float amount)
+        {
+            if (chroma == null) return;
+            GameFeel.Ensure();
+            punch.Value = Mathf.Max(punch.Value, Mathf.Clamp01(amount));
+            punch.Velocity = 0f;
+        }
+
+        /// <summary>Wywoływane co klatkę (czas rzeczywisty) przez GameFeel.</summary>
+        public static void TickPunch(float dt)
+        {
+            if (chroma == null) return;
+            if (Mathf.Abs(punch.Value) < 0.002f && Mathf.Abs(punch.Velocity) < 0.01f)
+            {
+                if (punch.Value != 0f)
+                {
+                    punch.Reset();
+                    chroma.intensity.Override(0f);
+                    lens.intensity.Override(0f);
+                    vignette.intensity.Override(vignetteBase);
+                }
+                return;
+            }
+            punch.Step(0f, 3.2f, 0.55f, dt);
+            float p = punch.Value;
+            chroma.intensity.Override(Mathf.Clamp01(Mathf.Max(0f, p) * 0.55f));
+            // ujemna beczka = obraz "zasysa się" do środka, dodatnia przy odbiciu
+            lens.intensity.Override(Mathf.Clamp(-p * 0.22f, -0.3f, 0.12f));
+            vignette.intensity.Override(vignetteBase + Mathf.Max(0f, p) * 0.12f);
         }
 
         static Light ExtraDirectional(string name, Transform parent, Quaternion rot, Color c, float intensity)

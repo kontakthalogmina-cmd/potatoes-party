@@ -37,15 +37,17 @@ Varyings PotatoVert(Attributes input)
     UNITY_TRANSFER_INSTANCE_ID(input, o);
     UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 
-    VertexPositionInputs pos = GetVertexPositionInputs(input.positionOS.xyz);
-    VertexNormalInputs nrm = GetVertexNormalInputs(input.normalOS);
-    o.positionCS = pos.positionCS;
-    o.positionWS = pos.positionWS;
-    o.normalWS = nrm.normalWS;
+    float3 restWS = TransformObjectToWorld(input.positionOS.xyz);
+    float3 positionWS = PP_ApplyImpact(restWS);
+    float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+    o.positionCS = TransformWorldToHClip(positionWS);
+    o.positionWS = positionWS;
+    o.normalWS = normalWS;
     o.uv = TRANSFORM_TEX(input.uv, _BaseMap);
-    o.charPos = PotatoCharacterSpace(pos.positionWS, input.positionOS.xyz);
-    o.charNormal = PotatoCharacterDir(nrm.normalWS, input.normalOS);
-    o.fogFactor = ComputeFogFactor(pos.positionCS.z);
+    // maski i wzór liczone z pozycji SPOCZYNKOWEJ: plamy nie "pływają" po skórze przy wgnieceniu
+    o.charPos = PotatoCharacterSpace(restWS, input.positionOS.xyz);
+    o.charNormal = PotatoCharacterDir(normalWS, input.normalOS);
+    o.fogFactor = ComputeFogFactor(o.positionCS.z);
     return o;
 }
 
@@ -58,6 +60,7 @@ struct PotatoSurface
     half  smoothness;
     half  specular;
     half  scatter;        // siła fake SSS (błoto i zwęglenie ją gaszą, szron zmienia kolor)
+    half  curvature;      // 0 = płasko (tułów), 1 = mocno zakrzywione (rączki, stopy, nos) – szersze rozpraszanie
     half  thickness;
     half3 sheen;
     half  occlusion;
@@ -187,7 +190,19 @@ half3 PP_DirectLight(Light light, PotatoSurface s, half3 N, half3 V)
     half sssBand = saturate(wrapped - NdotL * 0.85h);
     // światło "przecieka" w cień na krawędzi: rozpraszanie widzi bardziej miękki cień niż powierzchnia
     half sssShadow = lerp(shadow, 1.0h, 0.35h * s.scatter);
-    half3 diffuse = s.albedo * lerp(NdotL, wrapped, s.scatter * 0.5h) * shadow * (1.0h - s.metallic)
+
+    // Wrap per kanał (tani odpowiednik pre-integrated skin, Penner 2011): czerwień "owija" terminator
+    // najdalej, niebieski najkrócej – przejście światło/cień robi się ciepłe zamiast szarego.
+    // Szerokość rośnie z krzywizną: cienkie rączki i stopy świecą mocniej niż płaski brzuch.
+    half3 wv = w * (0.7h + 0.8h * s.curvature) * half3(1.25h, 0.75h, 0.55h);
+    half3 wrapRGB = saturate((NdotLraw.xxx + wv) / ((1.0h + wv) * (1.0h + wv)));
+    half3 diffTerm = lerp(NdotL.xxx, wrapRGB, s.scatter * 0.6h);
+
+    // Kolorowy półcień (secret sauce, Jimenez "Separable SSS"): cień rzucony na skórę ma czerwonawą
+    // krawędź, bo światło rozprasza się pod nią. shadow^(1/(1+k·scatter)) dla k = (1.4, 0.45, 0.2).
+    half3 shadowRGB = pow(max(shadow.xxx, 1e-3h), 1.0h / (1.0h + s.scatter * half3(1.4h, 0.45h, 0.2h)));
+
+    half3 diffuse = s.albedo * diffTerm * shadowRGB * (1.0h - s.metallic)
                   + s.flesh * sssBand * s.scatter * 1.6h * sssShadow;
 
     // --- translucencja pod światło (Barré-Brisebois & Bouchard, GDC 2011)
@@ -248,6 +263,9 @@ half4 PotatoFrag(Varyings input) : SV_Target
     half3 N = PP_PerturbNormal(Ngeo, positionWS, height, _BumpStrength);
 
     // ---------- powierzchnia bazowa
+    // krzywizna z pochodnych ekranowych: |Δn| / |Δp| ≈ 1/promień (poza gałęziami – pochodne)
+    half curvature = saturate(length(fwidth(Ngeo)) / max(length(fwidth(positionWS)), 1e-4) * _CurvatureScale);
+
     half4 baseTex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
     PotatoSurface s;
     s.albedo = baseTex.rgb * _BaseColor.rgb;
@@ -256,6 +274,7 @@ half4 PotatoFrag(Varyings input) : SV_Target
     s.smoothness = _Smoothness * (1.0h - eyes * 0.5h);
     s.specular = _SpecularStrength;
     s.scatter = _ScatterStrength;
+    s.curvature = curvature;
     s.thickness = _Thickness;
     s.sheen = _SheenColor.rgb;
     s.emission = 0;
@@ -267,6 +286,17 @@ half4 PotatoFrag(Varyings input) : SV_Target
     // kontakt z ziemią: dół postaci ciemnieje (stylizowany AO obiektu, działa też bez SSAO)
     s.occlusion = lerp(1.0h - _GroundOcclusion, 1.0h, saturate((cp.y + 0.75h) / 0.9h));
     s.occlusion *= 1.0h - eyes * 0.3h;
+
+    // ---------- siniak pod wszystkimi warstwami: skórka ciemnieje, matowieje, a miąższ pod spodem
+    //            robi się krwistoczerwony (rozpraszanie przejmuje kolor siniaka)
+    UNITY_BRANCH if (_BruiseAmount > 0.001)
+    {
+        half3 bruiseCol = lerp(_BruiseColor.rgb, half3(0.55h, 0.5h, 0.2h), saturate(1.0h - m.bruise * 1.8h) * 0.5h);
+        s.albedo = lerp(s.albedo, s.albedo * bruiseCol * 1.6h, m.bruise);
+        s.smoothness = lerp(s.smoothness, s.smoothness * 0.6h, m.bruise);
+        s.sheen *= 1.0h - m.bruise * 0.6h;
+        s.flesh = lerp(s.flesh, half3(0.85h, 0.18h, 0.22h), m.bruise * 0.7h);
+    }
 
     // ---------- maski (kolejność: zwęglenie -> błoto -> szron, bo szron pokrywa wszystko)
     UNITY_BRANCH if (_BurnAmount > 0.001)

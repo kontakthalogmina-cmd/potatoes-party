@@ -101,6 +101,7 @@ struct PotatoMasks
     half burn;       // zwęglenie
     half ember;      // żarząca się krawędź
     half height;     // wkład masek do pola wysokości (błoto i lód są wypukłe)
+    half bruise;     // siniak (maska zniszczeń po ciosach)
 };
 
 // Wspólny "front" odsłaniania: amount 0 -> nic, amount 1 -> cała postać.
@@ -157,6 +158,17 @@ PotatoMasks PP_EvaluateMasks(float3 charPos, float3 charN)
         half crack = 1.0 - smoothstep(0.0, 0.08, cracks.y - cracks.x);
         m.ember = saturate(edge + crack * m.burn * 0.6) * _BurnHeat;
         m.height -= m.burn * crack * 0.3;                    // pęknięcia są wklęsłe
+    }
+
+    // --- SIŃCE: miękkie, nakrapiane plamy po stronie ciosu; środek ciemniejszy, brzeg żółtawy (gojenie)
+    UNITY_BRANCH if (_BruiseAmount > 0.001)
+    {
+        half n = (half)PP_Fbm(p * 3.1 + 63.0);
+        half facing = saturate(dot(charN, normalize(_BruiseDir.xyz + 1e-4)));
+        half field = facing * _BruiseDir.w * 0.75 + n * 0.5;
+        half t = lerp(1.3h, 0.15h, _BruiseAmount * receive);
+        m.bruise = smoothstep(t - 0.12, t + 0.10, field);
+        m.height -= m.bruise * 0.12;                         // lekko wklęsłe
     }
     return m;
 }

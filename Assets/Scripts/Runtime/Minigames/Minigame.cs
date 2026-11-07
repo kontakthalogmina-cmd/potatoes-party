@@ -8,6 +8,42 @@ namespace PotatoParty
     /// Wspólna baza minigier: arena, spadanie, eliminacje, punktacja, ranking i pomoc dla botów.
     /// Każda minigra dopisuje tylko swoje zasady.
     /// </summary>
+    /// <summary>Widok "żywi gracze" bez alokacji (zobacz <see cref="Minigame.Alive"/>).</summary>
+    public struct AliveSet : IEnumerable<Potato>
+    {
+        readonly List<Potato> list;
+        public AliveSet(List<Potato> list) { this.list = list; }
+
+        public Enumerator GetEnumerator() { return new Enumerator(list); }
+        IEnumerator<Potato> IEnumerable<Potato>.GetEnumerator() { return GetEnumerator(); }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { return GetEnumerator(); }
+
+        public struct Enumerator : IEnumerator<Potato>
+        {
+            readonly List<Potato> list;
+            int index;
+
+            public Enumerator(List<Potato> list) { this.list = list; index = -1; }
+
+            public Potato Current { get { return list[index]; } }
+            object System.Collections.IEnumerator.Current { get { return Current; } }
+
+            public bool MoveNext()
+            {
+                if (list == null) return false;
+                while (++index < list.Count)
+                {
+                    var p = list[index];
+                    if (p != null && !p.Eliminated) return true;
+                }
+                return false;
+            }
+
+            public void Reset() { index = -1; }
+            public void Dispose() { }
+        }
+    }
+
     public abstract class Minigame
     {
         public abstract string Title { get; }
@@ -41,8 +77,26 @@ namespace PotatoParty
         readonly Dictionary<Potato, Vector3> botGoal = new Dictionary<Potato, Vector3>();
         readonly Dictionary<Potato, float> botGoalTime = new Dictionary<Potato, float>();
 
-        public IEnumerable<Potato> Alive { get { return Players.Where(p => p != null && !p.Eliminated); } }
-        public int AliveCount { get { return Players.Count(p => p != null && !p.Eliminated); } }
+        /// <summary>
+        /// Żywi gracze. Struktura z własnym enumeratorem: `foreach (var p in Alive)` nie alokuje
+        /// (wcześniej LINQ Where = enumerator + domknięcie na stercie przy każdym wywołaniu, kilka razy na klatkę).
+        /// Nadal działa z LINQ (OrderBy, ElementAt, new List(Alive)) tam, gdzie to rzadkie.
+        /// </summary>
+        public AliveSet Alive { get { return new AliveSet(Players); } }
+
+        public int AliveCount
+        {
+            get
+            {
+                int n = 0;
+                for (int i = 0; i < Players.Count; i++)
+                {
+                    var p = Players[i];
+                    if (p != null && !p.Eliminated) n++;
+                }
+                return n;
+            }
+        }
 
         public void Setup(GameManager gm, MapTheme map, Transform root)
         {

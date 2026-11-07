@@ -58,7 +58,7 @@ namespace PotatoParty
 
         Vector2 moveInput;
         bool jumpQueued, actionQueued;
-        float dashTimer, dashCooldown, stunTimer, coyote, botThinkTimer, waddle, squash;
+        float dashTimer, dashCooldown, stunTimer, coyote, botThinkTimer, waddle;
         BotCommand botCmd;
         Vector3 baseVisualScale = Vector3.one;
         float tumble, tumbleSpeed, yaw = 180f;
@@ -66,6 +66,19 @@ namespace PotatoParty
         GameObject mouthSmile, mouthO;
         float blinkTimer, blink;
         Transform dizzy;
+
+        // ---------------- game feel: sprężyny zamiast liniowego "squash" ----------------
+        // squashSpring: zgniecenie w osi Y (lądowanie +, wybicie –), z zachowaniem objętości (xz = 1/√y).
+        // jelly: zgniecenie wzdłuż dowolnej osi (kierunek ciosu / zrywu) przez łańcuch obrót–skala–obrót⁻¹,
+        //        więc deformuje się CAŁA postać (oczy, kapelusz, rączki), a nie tylko ciało.
+        public static float SquashFrequency = 5f, SquashDamping = 0.33f;
+        public static float JellyFrequency = 4.2f, JellyDamping = 0.26f;
+        public static float HitShakeTime = 0.12f, HitShakeAmplitude = 0.07f;
+        Spring squashSpring, jelly;
+        Vector3 jellyAxis = Vector3.forward;
+        Transform jellyA, jellyS, jellyB;
+        float hitShake;
+        Vector3 hitShakeDir = Vector3.right;
 
         public static Potato Create(PlayerSlot slot, Transform parent, Vector3 position)
         {
@@ -156,6 +169,7 @@ namespace PotatoParty
 
             // kiełek na czubku albo dodatek skórki (kapelusz, czapka, rogi, okulary...)
             PotatoSkins.BuildAccessory(Skin, Visual, c);
+            // (łańcuch "galaretki" dokładamy na końcu, gdy wszystkie części już są pod Visual)
 
             // rączki z rękawiczkami (w kolorze gracza, jeśli skórka nie ma jego koloru)
             var glove = Skin.PlayerGloves ? Color.Lerp(c, Color.white, 0.12f) : Color.white;
@@ -178,6 +192,8 @@ namespace PotatoParty
                 Shapes.AddOutline(foot);
                 feet[s < 0 ? 0 : 1] = foot.transform;
             }
+
+            BuildJellyChain();
 
             HeadAnchor = Shapes.Empty("NadGlowa", transform, new Vector3(0, 1.35f, 0)).transform;
 
@@ -215,6 +231,61 @@ namespace PotatoParty
         }
 
 
+        /// <summary>
+        /// Visual → A (obrót do osi ciosu) → S (skala wzdłuż osi) → B (obrót odwrotny) → części ciała.
+        /// Kombinacja daje skalowanie wzdłuż dowolnego kierunku (shear-free squash) bez własnej siatki.
+        /// </summary>
+        void BuildJellyChain()
+        {
+            jellyA = new GameObject("Galaretka").transform;
+            jellyA.SetParent(Visual, false);
+            jellyS = new GameObject("Galaretka skala").transform;
+            jellyS.SetParent(jellyA, false);
+            jellyB = new GameObject("Galaretka powrot").transform;
+            jellyB.SetParent(jellyS, false);
+            var kids = new System.Collections.Generic.List<Transform>(Visual.childCount);
+            for (int i = 0; i < Visual.childCount; i++)
+            {
+                var ch = Visual.GetChild(i);
+                if (ch != jellyA) kids.Add(ch);
+            }
+            for (int i = 0; i < kids.Count; i++) kids[i].SetParent(jellyB, false);
+        }
+
+        /// <summary>Zgniecenie wzdłuż kierunku w świecie (value &gt; 0 = spłaszczenie, &lt; 0 = rozciągnięcie).</summary>
+        void JellyHit(Vector3 worldDir, float value)
+        {
+            if (Visual == null || worldDir.sqrMagnitude < 1e-4f) return;
+            jellyAxis = Visual.InverseTransformDirection(worldDir.normalized);
+            // ustawiamy wartość od razu (nie prędkość): deformacja jest widoczna już w klatce hit-stopu
+            jelly.Value = value;
+            jelly.Velocity = 0f;
+        }
+
+        void ApplyJelly(float dt)
+        {
+            if (jellyA == null) return;
+            jelly.Step(0f, JellyFrequency, JellyDamping, dt);
+            float j = Mathf.Clamp(jelly.Value, -0.3f, 0.42f);
+            if (Mathf.Abs(j) < 0.001f && Mathf.Abs(jelly.Velocity) < 0.01f)
+            {
+                if (jellyS.localScale != Vector3.one)
+                {
+                    jelly.Reset();
+                    jellyA.localRotation = Quaternion.identity;
+                    jellyS.localScale = Vector3.one;
+                    jellyB.localRotation = Quaternion.identity;
+                }
+                return;
+            }
+            var a = Quaternion.FromToRotation(Vector3.up, jellyAxis);
+            float along = 1f - j;
+            float side = 1f / Mathf.Sqrt(along); // zachowanie objętości
+            jellyA.localRotation = a;
+            jellyS.localScale = new Vector3(side, along, side);
+            jellyB.localRotation = Quaternion.Inverse(a);
+        }
+
         public void Teleport(Vector3 pos)
         {
             Body.position = pos;
@@ -235,6 +306,11 @@ namespace PotatoParty
 
         public void Knock(Vector3 impulse, float stun = 0.45f)
         {
+            KnockCore(impulse, stun, true);
+        }
+
+        void KnockCore(Vector3 impulse, float stun, bool environment)
+        {
             var v = Phys.GetVelocity(Body);
             v.x = impulse.x;
             v.z = impulse.z;
@@ -242,8 +318,24 @@ namespace PotatoParty
             Phys.SetVelocity(Body, v);
             stunTimer = Mathf.Max(stunTimer, stun);
             dashTimer = 0f;
-            squash = 1f;
             if (Surface != null && stun >= 0.5f) Surface.HitFlash(0.55f);
+
+            // game feel: kierunkowe zgniecenie, drżenie ofiary w hit-stopie, wgniecenie i siniak w shaderze
+            float horizontal = new Vector2(impulse.x, impulse.z).magnitude;
+            if (stun >= 0.5f || horizontal > 6f)
+            {
+                float power = Mathf.Clamp01(impulse.magnitude / 16f);
+                Vector3 dir = impulse.normalized;
+                JellyHit(dir, 0.12f + 0.24f * power);
+                hitShake = HitShakeTime;
+                hitShakeDir = horizontal > 0.01f ? new Vector3(impulse.x, 0f, impulse.z) / horizontal : Vector3.right;
+                if (Surface != null) Surface.Impact(dir, 0.35f + 0.65f * power);
+                if (environment) GameFeel.EnvironmentHit(dir, power);
+            }
+            else
+            {
+                squashSpring.Value = Mathf.Max(squashSpring.Value, 0.12f);
+            }
             // mocne uderzenie = fikołek w powietrzu
             if (stun >= 0.5f && new Vector2(impulse.x, impulse.z).magnitude > 7f) tumbleSpeed = Random.value < 0.5f ? 720f : -720f;
         }
@@ -301,13 +393,25 @@ namespace PotatoParty
             waddle += Time.deltaTime * (Grounded ? speed * 2.2f : 0f);
             float tilt = Grounded ? Mathf.Sin(waddle) * Mathf.Clamp01(speed / 6f) * 9f : 0f;
             float bob = Grounded ? Mathf.Abs(Mathf.Sin(waddle)) * 0.08f * Mathf.Clamp01(speed / 6f) : 0f;
-            squash = Mathf.MoveTowards(squash, 0f, Time.deltaTime * 4f);
-            float sq = Mathf.Sin(squash * Mathf.PI) * 0.28f;
+            squashSpring.Step(0f, SquashFrequency, SquashDamping, Time.deltaTime);
+            ApplyJelly(Time.deltaTime);
             // rozciąganie w locie (w górę wyższy i chudszy, przy spadaniu odwrotnie)
             float vy = Phys.GetVelocity(Body).y;
             float stretch = Grounded ? 0f : Mathf.Clamp(vy / 12f, -0.12f, 0.18f);
-            Visual.localPosition = new Vector3(0, bob + (VisualScale - 1f) * 0.72f, 0);
-            Visual.localScale = new Vector3(baseVisualScale.x * (1 + sq - stretch * 0.5f), baseVisualScale.y * (1 - sq + stretch), baseVisualScale.z * (1 + sq - stretch * 0.5f));
+            float sy = Mathf.Clamp(1f - squashSpring.Value + stretch, 0.62f, 1.35f);
+            float sxz = 1f / Mathf.Sqrt(sy); // objętość stała: ziemniak nie "chudnie" w zgnieceniu
+            Vector3 lp = new Vector3(0, bob + (VisualScale - 1f) * 0.72f, 0);
+            if (hitShake > 0f)
+            {
+                // drżenie ofiary w czasie rzeczywistym (działa w hit-stopie, gdy reszta świata stoi):
+                // 55 Hz wzdłuż kierunku ciosu, wygaszane kwadratowo – czytelne "kto oberwał"
+                hitShake -= Time.unscaledDeltaTime;
+                float k = Mathf.Clamp01(hitShake / HitShakeTime);
+                float w = Mathf.Sin(Time.unscaledTime * 345f) * HitShakeAmplitude * k * k;
+                lp += transform.InverseTransformDirection(hitShakeDir) * w;
+            }
+            Visual.localPosition = lp;
+            Visual.localScale = new Vector3(baseVisualScale.x * sxz, baseVisualScale.y * sy, baseVisualScale.z * sxz);
             AnimateLimbs(speed, vy);
             Trail(speed);
             SkinFx.Tick(this, Time.deltaTime);
@@ -407,7 +511,8 @@ namespace PotatoParty
                     dashCooldown = 1.0f;
                     v.x = dir.x * DashSpeed;
                     v.z = dir.z * DashSpeed;
-                    squash = 0.6f;
+                    // "smuga": rozciągnięcie wzdłuż kierunku zrywu, potem sprężyste dobicie
+                    JellyHit(dir, -0.2f);
                     AudioManager.Play(Sfx.Dash, 0.6f);
                 }
             }
@@ -419,7 +524,8 @@ namespace PotatoParty
                 {
                     v.y = 7.2f;
                     coyote = 0f;
-                    squash = 0.5f;
+                    squashSpring.Value = -0.16f; // wybicie: wyższy i chudszy od razu
+                    squashSpring.Velocity = 0f;
                     Effects.Puff(transform.parent, transform.position + Vector3.down * (HalfHeight - 0.1f), 0.6f);
                     AudioManager.Play(Sfx.Jump, 0.45f);
                 }
@@ -453,7 +559,9 @@ namespace PotatoParty
             float vy = Phys.GetVelocity(Body).y;
             if (Grounded && !was && vy < -4f)
             {
-                squash = 0.45f;
+                // lądowanie: im szybszy upadek, tym mocniej "plaśnie" (0.08–0.3)
+                squashSpring.Value = Mathf.Max(squashSpring.Value, Mathf.Clamp(-vy * 0.025f, 0.08f, 0.3f));
+                squashSpring.Velocity = 0f;
                 SkinFx.OnLand(this, hit.point + Vector3.up * 0.1f, -vy);
             }
         }
@@ -469,10 +577,14 @@ namespace PotatoParty
                 dir.y = 0;
                 if (dir.sqrMagnitude < 0.001f) dir = Facing;
                 dir.Normalize();
-                other.Knock(dir * DashPower + Vector3.up * 3.5f, 0.55f);
+                // moc trafienia 0..1: prędkość zderzenia + siła zrywu tej minigry (Sumo ma mocniejszy)
+                float power = Mathf.Clamp01(c.relativeVelocity.magnitude / 18f + (DashPower - 13f) / 16f);
+                other.KnockCore(dir * DashPower + Vector3.up * 3.5f, 0.55f, false);
                 SkinFx.OnHit(other, this);
                 // Odbicie uderzającego, żeby nie "wjeżdżał" w przeciwnika
-                Knock(-dir * 3f, 0.15f);
+                KnockCore(-dir * 3f, 0.15f, false);
+                JellyHit(dir, 0.14f); // uderzający też się "rozpłaszcza" na przeciwniku
+                GameFeel.DashHit(this, other, dir, power);
                 AudioManager.Play(Sfx.Bump, 0.8f);
                 if (GameManager.Instance != null) GameManager.Instance.OnPotatoBump(this, other, true);
             }
