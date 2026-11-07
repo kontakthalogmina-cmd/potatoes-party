@@ -248,6 +248,18 @@ p.Surface.HitFlash(1f);                    // biały błysk
 
 Pomysły na dalsze podpięcia: Deszcz Garnków (szron od lodowego garnka), Malarze (`_MudColor` = kolor farby jako „ochlapanie farbą”), Wulkan (stały lekki żar od podłoża, `_BurnDir` = dół), Kombajn (błoto przy wejściu w uprawę).
 
+### 3.5b Skórki: wzory i metal
+
+Skórki (`Gameplay/PotatoSkins.cs`) to kolory części ciała, dodatek na głowę oraz wzór liczony w shaderze w tej samej przestrzeni postaci co maski, więc paski i łaty płynnie przechodzą przez tułów i rączki. Właściwości materiału: `_PatternType` (0 brak, 1 paski, 2 łaty, 3 kosmos, 4 magma, 5 brokat), `_PatternColor`, `_PatternGlow` (HDR, emisja), `_PatternScale` i `_Metallic`.
+
+- `PP_EvaluatePattern` zwraca maskę, świecenie, wysokość (do bumpu) i zmianę szorstkości. Szerokość filtra `cpWidth = length(fwidth(cp))` liczymy przed gałęzią, bo pochodne w dynamicznym `if` są niezdefiniowane. Wzory są antyaliasowane tą szerokością.
+- **Metal** (Złota Bulwa) przesuwa F0 w stronę koloru skórki, przyciemnia rozproszenie `diffuse * (1 - metallic)` i barwi odbicie otoczenia, więc złoto naprawdę odbija sondę odbić sceny.
+- **Błoto, szron i zwęglenie przykrywają wzór:** gaszą jego emisję i metal, więc ubłocona Złota Bulwa przestaje błyszczeć, a Magmowa w szronie przestaje świecić.
+- Kontur (rim) ma kolor gracza (`_PlayerColor`), więc gracza da się rozpoznać niezależnie od skórki.
+- Wzór dostają tylko tułów, rączki i plamki (`Shapes.HeroMat(..., skin, skinIndex, player)`), a materiały są cache'owane po skórce i kolorze gracza.
+
+**Reakcje na świat** (`Gameplay/SkinFx.cs`): jedna tabela zasad dla wszystkich map. Lądowanie zostawia na stopach podłoże mapy (ziemia, piasek, trawa, mąka, popiół), uderzenie zrywem daje plamę od strony napastnika, lód szroni, gorące kamienie wulkanu powoli przypiekają stopy, lawa zwęgla, a woda zmywa brud (`PotatoSurface.Wash`). Minigry wołają tylko te zdarzenia oraz `SplashMud`, `Scorch` i `Freeze` tam, gdzie mają własny pomysł (farba, zupa, słoma).
+
 ### 3.6 Bump bez UV
 
 Postacie to prymitywy, więc relief liczymy z pochodnych ekranowych (Mikkelsen, *Bump Mapping Unparametrized Surfaces on the GPU*, 2010):
@@ -278,9 +290,9 @@ Wysokość to suma: oczka (wklęsłe), mikro-szum, błoto (wypukłe), szron (wyp
 4. `PotatoSurface` jest dodawany do każdego ziemniaka, gdy shader jest dostępny.
 5. `Look.BuildVolume` dodaje *Shadows / Midtones / Highlights* (chłodne cienie, ciepłe światła).
 
-**Ręcznie, jednorazowo, w URP Renderer Data (`Assets/Settings/…_Renderer`):**
-1. **Add Renderer Feature → Screen Space Ambient Occlusion**: Method *Interleaved Gradient*, Intensity 0.6, Radius 0.25, Direct Lighting Strength 0.15, Source *Depth Normals*. Shader ma przebieg `DepthNormals`, więc SSAO widzi ziemniaki poprawnie.
-2. Sprawdzić, czy *Rendering Path* jest ustawiony na *Forward+* (ProjectSetup to wymusza). Shader obsługuje cluster light loop, więc pochodnie i spot areny oświetlają ziemniaki.
+**Renderer:** `ProjectSetup` (wersja v6) próbuje sam dodać **Screen Space Ambient Occlusion** do URP Renderer Data i włącza depth texture, 4 kaskady cieni oraz miękkie cienie wysokiej jakości. Gdyby SSAO się nie pojawiło, dodaj ręcznie: **Add Renderer Feature → Screen Space Ambient Occlusion**, Method *Interleaved Gradient*, Intensity 0.6, Radius 0.25, Direct Lighting Strength 0.15, Source *Depth Normals*. Shader ma przebieg `DepthNormals`, więc SSAO widzi ziemniaki poprawnie.
+
+Sprawdzić, czy *Rendering Path* jest ustawiony na *Forward+* (ProjectSetup to wymusza). Shader obsługuje cluster light loop, więc pochodnie i spot areny oświetlają ziemniaki.
 
 **Kamera:** HDR i post-processing są już włączone w `Look.Setup` (`allowHDR`, `renderPostProcessing`, SMAA High). Shader wymaga HDR, żeby żar oparzeń i iskry szronu przekraczały próg bloomu (1.0).
 
