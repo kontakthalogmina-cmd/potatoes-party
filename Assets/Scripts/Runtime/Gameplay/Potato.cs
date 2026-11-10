@@ -123,6 +123,8 @@ namespace PotatoParty
             return p;
         }
 
+        static int anonSeed;
+
         void BuildVisual()
         {
             // Gładki ziemniaczek z dużą buzią, rączkami i nóżkami, w wybranej skórce
@@ -143,7 +145,7 @@ namespace PotatoParty
             };
             // bulwa: proceduralna, asymetryczna, z guzami i "oczkami" – każdy gracz ma własny kształt
             var torso = Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, 0.02f, 0), new Vector3(1.1f, 1.26f, 0.98f), body, false, gloss, "Cialo");
-            torso.GetComponent<MeshFilter>().sharedMesh = PotatoMesh.Get(Slot != null ? Slot.Index * 31 + skinIndex : GetInstanceID());
+            torso.GetComponent<MeshFilter>().sharedMesh = PotatoMesh.Get(Slot != null ? Slot.Index * 31 + skinIndex : 1000 + (anonSeed++ % 8));
             hero(torso, body, PotatoPart.Body, gloss);
             Shapes.AddOutline(torso);
             // (bez brzuszka, "okienka" twarzy i doklejanych plamek – to robiło z ziemniaka zabawkę;
