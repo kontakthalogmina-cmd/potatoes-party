@@ -27,6 +27,9 @@ namespace PotatoParty
         public static float ShowcaseAperture = 1.4f;
         public static float MotionBlurPerSpeed = 0.018f; // intensywność na m/s ruchu kamery
         public static float MotionBlurMax = 0.32f;
+        public static float CutSpeed = 25f;     // m/s ruchu kamery uznawane za cięcie
+        public static float BloomClamp = 8f;    // maks. jasność piksela wchodzącego do bloomu
+        public static float FlashEV = 0.5f;     // błysk wybuchu: maks. +0.5 EV (było +1.2)
         public static float BaseExposure = -0.35f;
         /// <summary>Jeśli ustawiony – ostrość trzyma się tego obiektu (menu: bohater na pierwszym planie).</summary>
         public static Transform FocusTarget;
@@ -55,6 +58,7 @@ namespace PotatoParty
         public static void Build(Transform parent)
         {
             if (volume != null) return;
+            ScreenGlitchProbe.Ensure();
             var go = new GameObject("Post-processing filmowy");
             go.transform.SetParent(parent, false);
             volume = go.AddComponent<Volume>();
@@ -69,8 +73,10 @@ namespace PotatoParty
             bloom = profile.Add<Bloom>(true);
             bloom.threshold.Override(1.15f);
             bloom.intensity.Override(0.3f);
-            bloom.scatter.Override(0.72f);
-            bloom.clamp.Override(40f);
+            bloom.scatter.Override(0.6f);
+            // clamp 40 → 8: pojedynczy piksel HDR (błysk światła 25–30, SSS, emisja oleju) nie może już rozlać
+            // poświaty na cały kadr. Przy 40 + scatter 0.72 wybuch dawał ~0.5 s jednolitej, prześwietlonej plamy.
+            bloom.clamp.Override(BloomClamp);
             bloom.highQualityFiltering.Override(true);
             bloom.tint.Override(Color.white);
 
@@ -250,7 +256,9 @@ namespace PotatoParty
                 aperture = Mathf.Lerp(aperture, needN, 1f - Mathf.Exp(-dt * k));
                 dof.aperture.Override(aperture);
 
-                motion.intensity.Override(Mathf.Clamp(rig.CameraSpeed * MotionBlurPerSpeed, 0f, MotionBlurMax));
+                // cięcie kamery (teleport, SnapNow, zmiana ujęcia) = prędkość > 25 m/s → bez bluru, inaczej cały kadr się rozmazuje
+                float camSpeed = rig.CameraSpeed;
+                motion.intensity.Override(camSpeed > CutSpeed ? 0f : Mathf.Clamp(camSpeed * MotionBlurPerSpeed, 0f, MotionBlurMax));
             }
 
             // --- puls i błysk
@@ -260,7 +268,33 @@ namespace PotatoParty
             chroma.intensity.Override(Mathf.Clamp01(chromaBase + Mathf.Max(0f, p01) * 0.55f));
             lens.intensity.Override(Mathf.Clamp(-p01 * 0.22f, -0.3f, 0.12f));
             vignette.intensity.Override(vignetteBase + Mathf.Max(0f, p01) * 0.12f);
-            color.postExposure.Override(exposure + Mathf.Max(0f, flash.Value) * 1.2f);
+            color.postExposure.Override(exposure + Mathf.Clamp01(flash.Value) * FlashEV);
+        }
+
+        // ---------------- diagnostyka (ScreenGlitchProbe, klawisze F6–F9) ----------------
+
+        /// <summary>F6 bloom, F7 głębia ostrości, F8 motion blur, F9 cały post-processing – do bisekcji glitcha na żywo.</summary>
+        public static string DebugToggle(int which)
+        {
+            if (volume == null) return "brak PostFx";
+            switch (which)
+            {
+                case 0: bloom.active = !bloom.active; return "Bloom " + (bloom.active ? "ON" : "OFF");
+                case 1: dof.active = !dof.active; return "DoF " + (dof.active ? "ON" : "OFF");
+                case 2: motion.active = !motion.active; return "Motion blur " + (motion.active ? "ON" : "OFF");
+                default: volume.enabled = !volume.enabled; return "Post-processing " + (volume.enabled ? "ON" : "OFF");
+            }
+        }
+
+        /// <summary>Migawka stanu efektów do logu glitcha.</summary>
+        public static string DebugState()
+        {
+            if (volume == null) return "PostFx: brak";
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "PostFx vol={0} exp={1:F2} flash={2:F2} punch={3:F2} bloom={4}/{5:F2} clamp={6:F0} dof={7} focus={8:F1} N={9:F1} motion={10}/{11:F2} chroma={12:F2} lens={13:F2} vign={14:F2}",
+                volume.enabled, color.postExposure.value, flash.Value, punch.Value, bloom.active, bloom.intensity.value, bloom.clamp.value,
+                dof.active ? dof.mode.value.ToString() : "off", dof.focusDistance.value, dof.aperture.value,
+                motion.active, motion.intensity.value, chroma.intensity.value, lens.intensity.value, vignette.intensity.value);
         }
 
         sealed class Runner : MonoBehaviour

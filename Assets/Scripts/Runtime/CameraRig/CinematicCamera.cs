@@ -171,6 +171,7 @@ namespace PotatoParty
         /// <summary>Natychmiastowe ustawienie kadru (zmiana mapy) – bez dojazdu i bez blendu.</summary>
         public void SnapNow()
         {
+            ScreenGlitchProbe.Note("kamera: cięcie (SnapNow)");
             Vector3 f;
             float d;
             Compute(out f, out d);

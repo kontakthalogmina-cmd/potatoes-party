@@ -17,6 +17,9 @@ namespace PotatoParty
         public static int CarryMax = 20, ComboAt = 10;
         public static float DepositTime = 0.6f, DepositRadius = 3.4f;
         public static float SpitEvery = 30f, SpitWarn = 2f, SpitTime = 3f, SpitRadius = 4.2f;
+        public static float WarmupTime = 5f, FinaleTime = 20f, FinaleSpitEvery = 12f;
+        public static float GoldEvery = 15f, FinaleGoldEvery = 8f;
+        public static int GoldValue = 5;
 
         public override string Title { get { return "Wielkie Smażenie"; } }
         public override string Description { get { return "Zrywem odrywaj z rywali strzępki, zbieraj je do wiaderka i wrzucaj do frytkownicy na dnie grządki. Uważaj: im mniej masy, tym jesteś szybszy, ale lżejszy – jeden cios i lecisz!"; } }
@@ -39,15 +42,98 @@ namespace PotatoParty
         readonly Dictionary<Potato, Transform> buckets = new Dictionary<Potato, Transform>();
         readonly List<Rigidbody> shreds = new List<Rigidbody>();
         readonly List<float> shredAge = new List<float>();
-        float spitTimer, spitting = -1f;
-        bool warned;
+        readonly List<int> shredValue = new List<int>();
+        float goldTimer = 6f;
+
+        // ---------------- maszyna stanów (State pattern) ----------------
+        public enum Phase { Warmup, Frying, SpitWarn, Spitting, Finale }
+
+        /// <summary>Stan gry: Enter przy wejściu, Tick co klatkę zwraca stan następny (albo siebie).</summary>
+        abstract class FryState
+        {
+            public abstract Phase Id { get; }
+            public float Time;
+            public virtual void Enter(DeepFryGame g) { }
+            public abstract FryState Tick(DeepFryGame g, float dt);
+        }
+
+        /// <summary>5 s: frytkownica grzeje się (wrzut zablokowany), na dachu szopy i wieży lądują złote strzępki.</summary>
+        sealed class WarmupState : FryState
+        {
+            public override Phase Id { get { return Phase.Warmup; } }
+            public override void Enter(DeepFryGame g) { g.GM.Hud.Toast("Olej się grzeje – złote strzępki na dachu i wieży!", Shapes.Hex("#FFC61A")); g.SpawnGold(true); }
+            public override FryState Tick(DeepFryGame g, float dt) { return Time >= WarmupTime ? (FryState)new FryingState() : this; }
+        }
+
+        /// <summary>Normalne smażenie: wrzut otwarty, licznik do prychnięcia.</summary>
+        sealed class FryingState : FryState
+        {
+            public override Phase Id { get { return Phase.Frying; } }
+            public override void Enter(DeepFryGame g) { g.spitTimer = g.finale ? FinaleSpitEvery : SpitEvery; }
+            public override FryState Tick(DeepFryGame g, float dt)
+            {
+                g.spitTimer -= dt;
+                if (!g.finale && g.TimeLeft <= FinaleTime) return new FinaleState();
+                return g.spitTimer <= SpitWarn ? (FryState)new SpitWarnState() : this;
+            }
+        }
+
+        /// <summary>2 s ostrzeżenia: bulgotanie, iskry, toast. Wrzut nadal działa (ryzyko!).</summary>
+        sealed class SpitWarnState : FryState
+        {
+            public override Phase Id { get { return Phase.SpitWarn; } }
+            public override void Enter(DeepFryGame g) { g.GM.Hud.Toast("Frytkownica zaraz PRYCHNIE!", Shapes.Hex("#FFB347")); AudioManager.Play(Sfx.Tick, 1f); }
+            public override FryState Tick(DeepFryGame g, float dt)
+            {
+                if (Random.value < dt * 10f) Fx.Sparks(g.Root, g.Fryer + Vector3.up * 1.7f, Shapes.Hex("#FFB347"), 4, 3f);
+                return Time >= SpitWarn ? (FryState)new SpittingState() : this;
+            }
+        }
+
+        /// <summary>3 s prychania: wyrzut z pomostu, wysypanie połowy wiaderka, przypalenie. Wrzut zablokowany.</summary>
+        sealed class SpittingState : FryState
+        {
+            public override Phase Id { get { return Phase.Spitting; } }
+            public override void Enter(DeepFryGame g) { Feel.Explosion(g.Fryer, 0.6f); }
+            public override FryState Tick(DeepFryGame g, float dt)
+            {
+                g.SpitBlast(dt);
+                return Time >= SpitTime ? (FryState)new FryingState() : this;
+            }
+        }
+
+        /// <summary>Ostatnie 20 s: wrzut liczy się ×2, prychnięcia co 12 s, złoto co 8 s.</summary>
+        sealed class FinaleState : FryState
+        {
+            public override Phase Id { get { return Phase.Finale; } }
+            public override void Enter(DeepFryGame g)
+            {
+                g.finale = true;
+                g.GM.Hud.Toast("FINAŁ! Wrzut ×2, olej prycha co 12 s", Shapes.Hex("#FF5A3C"));
+                AudioManager.Play(Sfx.Fanfare, 0.7f);
+            }
+            public override FryState Tick(DeepFryGame g, float dt) { return new FryingState(); }
+        }
+
+        FryState state;
+        float spitTimer;
+        bool finale;
+        public Phase Current { get { return state != null ? state.Id : Phase.Warmup; } }
+        bool DepositOpen { get { return state != null && (state.Id == Phase.Frying || state.Id == Phase.SpitWarn); } }
+
+        void Go(FryState next)
+        {
+            if (next == state) return;
+            state = next;
+            state.Time = 0f;
+            state.Enter(this);
+        }
 
         Vector3 Fryer { get { return L.PitCenter; } }
 
         public override void BuildArena()
         {
             L = GardenMap.Build(Root, Map, GardenCenter.Fryer);
-            spitTimer = SpitEvery;
         }
 
         public override Vector3 SpawnPoint(int i, int n)
@@ -108,7 +194,7 @@ namespace PotatoParty
             if (n + spill >= 6) GM.Hud.Toast(victim.Slot.Name + " sypie się! (" + (n + spill) + ")", hitter.Color);
         }
 
-        void Drop(Vector3 at, Vector3 dir, int n)
+        void Drop(Vector3 at, Vector3 dir, int n, int value = 1)
         {
             if (dir.sqrMagnitude < 1e-3f) dir = Random.insideUnitSphere;
             dir.y = 0f; dir.Normalize();
@@ -120,7 +206,9 @@ namespace PotatoParty
                 go.transform.rotation = Random.rotation;
                 go.transform.localScale = Vector3.one * Random.Range(0.28f, 0.38f);
                 go.AddComponent<MeshFilter>().sharedMesh = PotatoShreds.Chunk(i);
-                go.AddComponent<MeshRenderer>().sharedMaterial = Shapes.Mat(Shapes.Hex("#FFD54A"), 0.6f, 0.35f);
+                bool gold = value > 1;
+                if (gold) go.transform.localScale *= 1.8f;
+                go.AddComponent<MeshRenderer>().sharedMaterial = gold ? Shapes.Mat(Shapes.Hex("#FFB800"), 0.9f, 1.4f) : Shapes.Mat(Shapes.Hex("#FFD54A"), 0.6f, 0.35f);
                 var col = go.AddComponent<SphereCollider>();
                 col.radius = 0.5f;
                 var rb = go.AddComponent<Rigidbody>();
@@ -128,11 +216,26 @@ namespace PotatoParty
                 foreach (var p in Players) if (p != null) Physics.IgnoreCollision(col, p.GetComponent<Collider>(), true);
                 float yaw = Random.Range(-60f, 60f);
                 var d = Quaternion.Euler(0, yaw, 0) * dir;
-                Phys.SetVelocity(rb, d * Random.Range(3f, 7f) + Vector3.up * Random.Range(4f, 7f));
+                Phys.SetVelocity(rb, gold ? Vector3.up * 2f : d * Random.Range(3f, 7f) + Vector3.up * Random.Range(4f, 7f)); // złoto spada pionowo (zostaje na dachu)
                 rb.angularVelocity = Random.insideUnitSphere * 12f;
                 shreds.Add(rb);
                 shredAge.Add(0f);
+                shredValue.Add(value);
             }
+        }
+
+        /// <summary>Złote strzępki (×5) na wysokich poziomach mapy: dach szopy, wieża, losowy taras – wymusza wspinaczkę.</summary>
+        void SpawnGold(bool all)
+        {
+            var spots = new List<Vector3> { L.ShedRoof, L.TankTop };
+            if (L.Terraces.Count > 0) spots.Add(L.Terraces[Random.Range(0, L.Terraces.Count)]);
+            if (!all) spots = new List<Vector3> { spots[Random.Range(0, spots.Count)] };
+            foreach (var sp in spots)
+            {
+                Drop(sp + Vector3.up * 1.2f, Random.insideUnitSphere, 1, GoldValue);
+                Fx.Sparkle(Root, sp + Vector3.up * 1.5f, Shapes.Hex("#FFC61A"), 1.4f);
+            }
+            AudioManager.Play(Sfx.Coin, 0.6f);
         }
 
         // ---------------- pętla ----------------
@@ -153,9 +256,14 @@ namespace PotatoParty
             base.Tick(dt);
             if (Finished || !Running) return;
 
+            if (state == null) Go(new WarmupState());
+            state.Time += dt;
+            Go(state.Tick(this, dt));
+            goldTimer -= dt;
+            if (goldTimer <= 0f && Current != Phase.Warmup) { goldTimer = finale ? FinaleGoldEvery : GoldEvery; SpawnGold(false); }
+
             Collect(dt);
             Deposit(dt);
-            Spit(dt);
         }
 
         void Collect(float dt)
@@ -163,19 +271,21 @@ namespace PotatoParty
             for (int i = shreds.Count - 1; i >= 0; i--)
             {
                 var rb = shreds[i];
-                if (rb == null || rb.position.y < KillY) { if (rb != null) Object.Destroy(rb.gameObject); shreds.RemoveAt(i); shredAge.RemoveAt(i); continue; }
+                if (rb == null || rb.position.y < KillY) { if (rb != null) Object.Destroy(rb.gameObject); shreds.RemoveAt(i); shredAge.RemoveAt(i); shredValue.RemoveAt(i); continue; }
                 shredAge[i] += dt;
                 if (shredAge[i] < 0.45f) continue; // świeżo oderwany – nie wraca od razu do ofiary
                 foreach (var p in Players)
                 {
                     if (p == null || p.Eliminated || !carried.ContainsKey(p) || carried[p] >= CarryMax) continue;
                     if ((p.transform.position - rb.position).sqrMagnitude > 1.3f * 1.3f) continue;
-                    carried[p]++;
-                    mass[p] = Mathf.Min(MassMax, mass[p] + MassPerShred);
+                    int val = shredValue[i];
+                    carried[p] = Mathf.Min(CarryMax, carried[p] + val);
+                    mass[p] = Mathf.Min(MassMax, mass[p] + MassPerShred * val);
+                    if (val > 1) GM.Hud.Toast(p.Slot.Name + " łapie ZŁOTO! +" + val, Shapes.Hex("#FFC61A"));
                     Apply(p);
                     AudioManager.PlayPitched(Sfx.Coin, 0.35f, 1f + carried[p] * 0.03f);
                     Object.Destroy(rb.gameObject);
-                    shreds.RemoveAt(i); shredAge.RemoveAt(i);
+                    shreds.RemoveAt(i); shredAge.RemoveAt(i); shredValue.RemoveAt(i);
                     break;
                 }
             }
@@ -187,11 +297,11 @@ namespace PotatoParty
             {
                 if (p == null || p.Eliminated || !carried.ContainsKey(p)) continue;
                 var pos = p.transform.position;
-                bool on = FlatDist(pos, Fryer) < DepositRadius && pos.y < Fryer.y + 1.6f && carried[p] > 0 && spitting < 0f;
+                bool on = FlatDist(pos, Fryer) < DepositRadius && pos.y < Fryer.y + 1.6f && carried[p] > 0 && DepositOpen;
                 onDeck[p] = on ? onDeck[p] + dt : 0f;
                 if (onDeck[p] < DepositTime) continue;
                 int c = carried[p];
-                int pts = c >= ComboAt ? Mathf.RoundToInt(c * 1.5f) : c;
+                int pts = Mathf.RoundToInt(c * (c >= ComboAt ? 1.5f : 1f) * (finale ? 2f : 1f));
                 Score[p] += pts;
                 carried[p] = 0;
                 onDeck[p] = 0f;
@@ -203,13 +313,9 @@ namespace PotatoParty
             }
         }
 
-        void Spit(float dt)
+        /// <summary>Jedna klatka prychania (stan <see cref="SpittingState"/>).</summary>
+        void SpitBlast(float dt)
         {
-            spitTimer -= dt;
-            if (!warned && spitTimer <= SpitWarn) { warned = true; GM.Hud.Toast("Frytkownica zaraz PRYCHNIE!", Shapes.Hex("#FFB347")); AudioManager.Play(Sfx.Tick, 1f); }
-            if (spitTimer <= 0f && spitting < 0f) { spitting = SpitTime; Feel.Explosion(Fryer, 0.6f); }
-            if (spitting < 0f) return;
-            spitting -= dt;
             if (Random.value < dt * 8f) Fx.Splash(Root, Fryer + Vector3.up * 1.7f + Random.insideUnitSphere * 1.5f, Shapes.Hex("#F7C548"), 0.7f);
             foreach (var p in Players)
             {
@@ -223,7 +329,6 @@ namespace PotatoParty
                 Drop(p.transform.position, d, spill);
                 Apply(p);
             }
-            if (spitting < 0f) { spitTimer = SpitEvery; warned = false; }
         }
 
         public override string StatFor(Potato p)
@@ -235,7 +340,13 @@ namespace PotatoParty
 
         public override string HudInfo()
         {
-            return spitting >= 0f ? "FRYTKOWNICA PRYCHA!" : "Prychnięcie za " + Mathf.CeilToInt(spitTimer) + " s";
+            switch (Current)
+            {
+                case Phase.Warmup: return "Olej się grzeje… zbieraj złoto na górze!";
+                case Phase.Spitting: return "FRYTKOWNICA PRYCHA!";
+                case Phase.SpitWarn: return "UWAGA: prychnięcie!";
+                default: return (finale ? "FINAŁ ×2 · " : "") + "Prychnięcie za " + Mathf.CeilToInt(Mathf.Max(0f, spitTimer)) + " s";
+            }
         }
 
         // ---------------- boty ----------------
@@ -245,7 +356,7 @@ namespace PotatoParty
             var pos = p.transform.position;
             int c = carried.ContainsKey(p) ? carried[p] : 0;
             // 1) ucieczka przed prychnięciem
-            if ((spitTimer < SpitWarn + 0.5f || spitting >= 0f) && FlatDist(pos, Fryer) < SpitRadius + 2f)
+            if ((Current == Phase.SpitWarn || Current == Phase.Spitting || Current == Phase.Warmup) && FlatDist(pos, Fryer) < SpitRadius + 2f)
             {
                 var away = pos - Fryer; away.y = 0f;
                 return BotCommand.Go(pos + away.normalized * 6f);
@@ -257,7 +368,7 @@ namespace PotatoParty
             for (int i = 0; i < shreds.Count; i++)
             {
                 if (shreds[i] == null || shredAge[i] < 0.45f) continue;
-                float d = (shreds[i].position - pos).sqrMagnitude;
+                float d = (shreds[i].position - pos).sqrMagnitude / (shredValue[i] > 1 ? 25f : 1f); // złoto warte drogi na dach
                 if (d < bestD) { bestD = d; best = shreds[i]; }
             }
             if (best != null) return BotCommand.Go(best.position);

@@ -77,6 +77,7 @@ namespace PotatoParty
         public static void Explosion(Vector3 pos, float size01)
         {
             size01 = Mathf.Clamp01(size01);
+            ScreenGlitchProbe.Note("wybuch " + size01.ToString("F2") + " @" + pos.ToString("F1"));
             TimeDirector.HitStop(0.04f + 0.04f * size01);
             if (size01 > 0.5f) TimeDirector.Dilate(0.45f, 0.03f, 0.12f, 0.35f);
             Impulses.Fire(ImpulseKind.Explosion, pos, Vector3.down, 0.3f + 0.3f * size01);
@@ -94,6 +95,7 @@ namespace PotatoParty
         public static void Knockout(Potato p)
         {
             if (p == null) return;
+            ScreenGlitchProbe.Note("nokaut " + (p.Slot != null ? p.Slot.Name : "?") + " @" + p.transform.position.ToString("F1"));
             TimeDirector.HitStop(0.09f);
             TimeDirector.Dilate(KnockoutSlowScale, 0.05f, 0.35f, 0.45f);
             Impulses.Fire(ImpulseKind.Hit, p.transform.position, Vector3.down, 0.25f);
@@ -105,6 +107,7 @@ namespace PotatoParty
         /// <summary>Gol, meta, zwycięstwo rundy.</summary>
         public static void Triumph(Vector3 pos)
         {
+            ScreenGlitchProbe.Note("triumf @" + pos.ToString("F1"));
             TimeDirector.Dilate(0.35f, 0.06f, 0.45f, 0.5f);
             Impulses.Fire(ImpulseKind.Explosion, pos, Vector3.down, 0.2f);
             var gm = GameManager.Instance;

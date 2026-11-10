@@ -297,6 +297,7 @@ namespace PotatoParty
 
         /// <summary>Krótki błysk światła (wybuch, uderzenie pioruna, zryw).</summary>
         static readonly List<LightFade> lightPool = new List<LightFade>();
+        public static float MaxFlashIntensity = 6f;
 
         public static void FlashLight(Transform parent, Vector3 pos, Color c, float range, float intensity, float time)
         {
@@ -324,7 +325,8 @@ namespace PotatoParty
             var l = f.GetComponent<Light>();
             l.color = c;
             l.range = range;
-            l.intensity = intensity;
+            // błyski 25–30 przy ziemniaku 0.5 m od źródła dawały piksele HDR rzędu tysięcy → bloom na cały ekran
+            l.intensity = Mathf.Min(intensity, MaxFlashIntensity);
             f.Life = time;
             f.gameObject.SetActive(true); // OnEnable startuje zanikanie od bieżącej jasności
         }

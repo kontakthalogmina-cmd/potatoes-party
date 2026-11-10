@@ -122,6 +122,7 @@ namespace PotatoParty
         public void Shot(MenuShot s, bool instant = false)
         {
             Current = s;
+            ScreenGlitchProbe.Note("menu: ujęcie " + s + (instant ? " (cięcie)" : ""));
             var brain = GameManager.Instance != null && GameManager.Instance.Camera != null ? GameManager.Instance.Camera.Brain : null;
             if (brain != null)
                 brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, instant ? 0f : BlendTime);
@@ -135,6 +136,7 @@ namespace PotatoParty
         public void Release(bool instant = false)
         {
             Active = false;
+            ScreenGlitchProbe.Note("menu: release" + (instant ? " (cięcie)" : ""));
             var brain = GameManager.Instance != null && GameManager.Instance.Camera != null ? GameManager.Instance.Camera.Brain : null;
             if (brain != null)
                 brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, instant ? 0f : BlendTime);
