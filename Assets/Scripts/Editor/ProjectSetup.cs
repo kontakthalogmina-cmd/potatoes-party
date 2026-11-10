@@ -19,7 +19,7 @@ namespace PotatoParty.EditorTools
         const string ScenePath = "Assets/Scenes/PotatoesParty.unity";
         const string SettingsDir = "Assets/Settings";
         const string ResourcesDir = "Assets/Resources/PotatoParty";
-        const string DoneKey = "PotatoParty.SetupDone.v7";
+        const string DoneKey = "PotatoParty.SetupDone.v8";
 
         static ProjectSetup()
         {
@@ -205,7 +205,15 @@ namespace PotatoParty.EditorTools
             try
             {
                 foreach (var f in renderer.rendererFeatures)
-                    if (f != null && f.GetType().Name == "ScreenSpaceAmbientOcclusion") return;
+                    if (f != null && f.GetType().Name == "ScreenSpaceAmbientOcclusion")
+                    {
+                        // już jest – tylko dociągamy ustawienia do aktualnych (playtest: mocniejsze AO)
+                        var eso = new SerializedObject(f);
+                        ApplySsaoSettings(eso);
+                        eso.ApplyModifiedPropertiesWithoutUndo();
+                        EditorUtility.SetDirty(f);
+                        return;
+                    }
                 var type = typeof(UniversalRendererData).Assembly.GetType("UnityEngine.Rendering.Universal.ScreenSpaceAmbientOcclusion");
                 if (type == null) return;
                 var feature = ScriptableObject.CreateInstance(type) as ScriptableRendererFeature;
@@ -214,12 +222,8 @@ namespace PotatoParty.EditorTools
                 AssetDatabase.AddObjectToAsset(feature, renderer);
                 renderer.rendererFeatures.Add(feature);
 
-                // ustawienia: delikatne, miękkie AO pasujące do jasnego stylu
                 var fso = new SerializedObject(feature);
-                SetFloat(fso, "m_Settings.Intensity", 1.0f);
-                SetFloat(fso, "m_Settings.Radius", 0.4f);
-                SetFloat(fso, "m_Settings.DirectLightingStrength", 0.25f);
-                SetBool(fso, "m_Settings.Downsample", false);
+                ApplySsaoSettings(fso);
                 fso.ApplyModifiedPropertiesWithoutUndo();
 
                 // mapa funkcji renderera musi zgadzać się z listą (inaczej URP zgłasza niespójność)
@@ -242,6 +246,16 @@ namespace PotatoParty.EditorTools
             {
                 Debug.LogWarning("[Potatoes Party] Nie udało się dodać SSAO: " + e.Message);
             }
+        }
+
+        /// <summary>AO po playteście: wyraźne cienie kontaktowe pod ziemniakami i w szczelinach areny.</summary>
+        static void ApplySsaoSettings(SerializedObject so)
+        {
+            SetFloat(so, "m_Settings.Intensity", 2.2f);
+            SetFloat(so, "m_Settings.Radius", 0.55f);
+            SetFloat(so, "m_Settings.DirectLightingStrength", 0.45f);
+            SetFloat(so, "m_Settings.Falloff", 60f);
+            SetBool(so, "m_Settings.Downsample", false);
         }
 
         static void SetVector3(SerializedObject so, string name, Vector3 v) { var p = so.FindProperty(name); if (p != null) p.vector3Value = v; }

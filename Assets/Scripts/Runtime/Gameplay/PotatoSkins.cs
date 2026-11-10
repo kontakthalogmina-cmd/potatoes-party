@@ -37,7 +37,9 @@ namespace PotatoParty
         /// <summary>Rękawiczki w kolorze gracza (dla skórek, których ciało nie ma koloru gracza).</summary>
         public bool PlayerGloves = true;
 
-        public Color BodyColor(Color player) { return Body ?? Color.Lerp(player, Color.white, 0.08f); }
+        /// <summary>Domyślna skórka to PRAWDZIWY ziemniak (płowy brąz) z lekką nutą koloru gracza – kolor gracza niosą rękawiczki, pierścień i kontur.</summary>
+        public static Color PotatoTan = new Color(0.78f, 0.6f, 0.38f);
+        public Color BodyColor(Color player) { return Body ?? Color.Lerp(PotatoTan, player, 0.22f); }
         public Color BellyColor(Color player) { return Belly ?? Color.Lerp(BodyColor(player), Color.white, 0.5f); }
         public Color SpotColor(Color player) { return Color.Lerp(BodyColor(player), Color.black, 0.25f); }
     }

@@ -440,3 +440,21 @@ Po pierwszym teście wszystkie gałki przesunięte w stronę kina. Każdą możn
 - `Feel.DashHit`: **usunięty hit stop** (było 80–160 ms). Waga ciosu = `PotatoShreds.Burst` + impuls kamery + FOV punch + rumble + rozcięcie skórki (`PotatoSurface.Impact`).
 - `MotorTuning`: DashStartup 0.035 → **0** (wystrzał w tej samej klatce), DashActive 0.16 → **0.15**, DashRecovery 0.14 → **0.1** (sterowanie 60%), DashCooldown 0.85 → **0.7**; `Potato.DashSpeed` 17.5 → **21 m/s**.
 - `VFX/PotatoShreds.cs`: 3 trwałe ParticleSystem (miąższ 900, skórka 400, okruchy 700 cząstek), emisja ręczna `Emit(EmitParams)`, siatki proceduralne, kolizja ze światem (bounce 0.32/0.2/0.4, dampen 0.28/0.12/0.35), gravity ×1.7/1.25/1.4. Liczba kawałków: miąższ 10–26, skórka 4–12, okruchy 14–40 (power²). Stożek 55°, prędkość 3.5–10 m/s, w górę 2.5–6.5 m/s. `PotatoShreds.Amount` = globalny mnożnik.
+
+## Strojenie v3 – po playteście (2026-11-10)
+
+| Gdzie | Pole | v2 | v3 |
+|---|---|---|---|
+| CinematicCamera | PitchNear / PitchFar | 20° / 38° | **38° / 54°** |
+| CinematicCamera | MinDistance / MaxDistance / FrameMargin | 6 / 22 / 1.3 m | **13 / 34 / 2.6 m** |
+| CinematicCamera | FrameHumansOnly | (zawsze tylko ludzie) | **false – kadr obejmuje wszystkich** |
+| GameManager | MinDistance menu / lobby / gra / podium | 9 / 7.5 / 6 / 7 | **15 / 13 / 13 / 11**, MinSpread gry 8 m |
+| PostFx | BaseExposure / MoodExposure | −0.15 / −0.45 | **−0.35 / −0.7** (Lód −0.2, Plaża +0.05 przed nastrojem) |
+| PostFx | kontrast / nasycenie (bazowe, nastrój) | 34, 2 / +22, −14 | **28, 20 / +16, +4** (głęboko i soczyście) |
+| PostFx | Bloom threshold / intensity | 0.9 / 0.55 | **1.15 / 0.3**, mapy ×0.7 |
+| PostFx | Winieta / ziarno / DoF rozmycie graczy | 0.42 / 0.22 / 2.5 px | **0.32 / 0.14 / 1.0 px**, 85 mm |
+| Lighting | Słońce wysokość / mnożnik | 30° / 1.7 | **38° / 1.35** |
+| SSAO (ProjectSetup v8) | Intensity / Radius / Direct / Falloff | 1.0 / 0.4 / 0.25 / – | **2.2 / 0.55 / 0.45 / 60 m**, nadpisywane przy każdym starcie edytora |
+| Ziemniak | bryła | sfera Unity | **PotatoMesh**: 56×36, guzy 0.075+0.022, asymetria 0.09, wygięcie 0.06, 6–9 oczek (głęb. 0.04, r 0.11) |
+| Ziemniak | kolor domyślnej skórki | kolor gracza | **płowy brąz (0.78, 0.6, 0.38) + 22% koloru gracza** |
+| Ziemniak | shader ciała | – | Speckle ≥ 0.85, Lenticel 0.75, Net 0.4, Bump 0.065; kurz nigdy < 0.22 |

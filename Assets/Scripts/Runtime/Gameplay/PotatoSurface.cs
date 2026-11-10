@@ -58,6 +58,8 @@ namespace PotatoParty
         public float MudDryDelay = 4f;
         public float MudFade = 0.05f;
         public float DustFade = 0.01f;
+        /// <summary>Ziemniak nigdy nie jest idealnie czysty: kurz nie schodzi poniżej tego poziomu.</summary>
+        public static float DustFloor = 0.22f;
         public float WetDry = 0.085f;       // pełne zmoczenie schnie ~12 s
         public float FrostRate = 0.25f;
         public float BurnFade = 0.03f;
@@ -215,7 +217,8 @@ namespace PotatoParty
 
         public void Clear()
         {
-            Dust = Mud = Wet = Frost = Burn = Heat = Flash = Bruise = Cut = 0f;
+            Mud = Wet = Frost = Burn = Heat = Flash = Bruise = Cut = 0f;
+            Dust = DustFloor;
             FrostTarget = 0f;
             MudColor = DefaultMud;
             DustColor = DefaultDust;
@@ -238,7 +241,7 @@ namespace PotatoParty
             float dt = Time.deltaTime;
             mudAge += dt;
             if (mudAge > MudDryDelay) Mud = Mathf.MoveTowards(Mud, 0f, MudFade * dt);
-            Dust = Mathf.MoveTowards(Dust, 0f, DustFade * dt);
+            Dust = Mathf.MoveTowards(Dust, DustFloor, DustFade * dt);
             Wet = Mathf.MoveTowards(Wet, 0f, WetDry * dt * (1f + Heat * 4f));
             Frost = Mathf.MoveTowards(Frost, FrostTarget, FrostRate * dt);
             Burn = Mathf.MoveTowards(Burn, 0f, BurnFade * dt);

@@ -27,30 +27,32 @@ namespace PotatoParty
         public readonly List<Transform> Targets = new List<Transform>();
         public Vector3 ArenaCenter;
         public float ArenaRadius = 10f;
+        /// <summary>true = kadr tylko na ludzi (boty mogą wyjść z kadru). Playtest: false – akcja musi być czytelna.</summary>
+        public bool FrameHumansOnly = false;
         /// <summary>Przesunięcie kadru w świecie (menu: postacie po prawej, miejsce na przyciski po lewej).</summary>
         public Vector3 ScreenOffset = Vector3.zero;
         /// <summary>Najbliższy dystans kamery od punktu kadru [m]. Gra: 9, lobby: 12, menu: 13.</summary>
-        public float MinDistance = 6f;
-        public float MaxDistance = 22f;
+        public float MinDistance = 13f;
+        public float MaxDistance = 34f;
         /// <summary>0 = kadr tylko na graczy, 1 = kadr przyklejony do środka areny.</summary>
         public float FollowArenaPull = 0.1f;
         /// <summary>Minimalny rozrzut grupy [m] – poniżej tego kamera już się nie przybliża.</summary>
         public float MinSpread = 5f;
 
         [Header("Kadr (Inspektor: wartości gry)")]
-        public float PitchNear = 20f;            // ° przy MinDistance (nisko, "z poziomu ziemniaka")
-        public float PitchFar = 38f;             // ° przy MaxDistance
+        public float PitchNear = 38f;            // ° przy MinDistance – czytelny kąt na całą arenę
+        public float PitchFar = 54f;             // ° przy MaxDistance
         public float Yaw = 0f;
-        public float FrameMargin = 1.3f;         // m zapasu wokół skrajnych graczy
+        public float FrameMargin = 2.6f;         // m zapasu wokół skrajnych graczy
         public float LeadTime = 0.3f;            // s wyprzedzenia ruchu grupy
         public float MaxLead = 2.5f;             // m
         public float FocusSmoothTime = 0.22f;    // s (SmoothDamp punktu kadru)
         public float DistanceSmoothTime = 0.45f; // s (SmoothDamp dystansu: oddalanie wolniej niż ruch)
-        public float BaseFov = 34f;              // ° pionowo, gra
-        public float ShowcaseFov = 26f;          // ° menu / lobby / podium
+        public float BaseFov = 36f;              // ° pionowo, gra
+        public float ShowcaseFov = 28f;          // ° menu / lobby / podium
 
         [Header("Tryb pokazowy (menu, lobby, podium)")]
-        public float ShowcasePitch = 12f;
+        public float ShowcasePitch = 18f;
         public float ShowcaseOrbit = 10f;        // ° wahania kąta
         public float ShowcaseOrbitSpeed = 0.07f; // Hz
 
@@ -212,7 +214,7 @@ namespace PotatoParty
             for (int i = 0; i < Targets.Count; i++)
             {
                 var t = Targets[i];
-                if (Usable(t, true) && PotatoOf(t) != null) { anyHuman = true; break; }
+                if (FrameHumansOnly && Usable(t, true) && PotatoOf(t) != null) { anyHuman = true; break; }
             }
 
             Bounds b = new Bounds(ArenaCenter, Vector3.one);
@@ -247,7 +249,7 @@ namespace PotatoParty
 
             f = Vector3.Lerp(center, ArenaCenter, FollowArenaPull);
             f += Vector3.ClampMagnitude(groupVelocity * LeadTime, MaxLead);
-            f.y = ArenaCenter.y + 0.9f; // celujemy w oczy, nie w stopy
+            f.y = ArenaCenter.y + 0.6f; // celujemy w tułów
             f += ScreenOffset;
 
             // rozrzut w osiach kadru: głębokość (Z) liczy się mocniej, bo kamera patrzy pod kątem

@@ -170,7 +170,7 @@ namespace PotatoParty
             BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius);
             Showcase(true);
             Camera.ScreenOffset = new Vector3(-5.5f, 0, 0);
-            Camera.MinDistance = 9f;
+            Camera.MinDistance = 15f;
             Camera.FollowArenaPull = 1f;
             Camera.MinSpread = 16f;
             for (int i = 0; i < 4; i++)
@@ -243,7 +243,7 @@ namespace PotatoParty
             BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius, true);
             Showcase(true);
             Camera.ScreenOffset = Vector3.zero;
-            Camera.MinDistance = 7.5f;
+            Camera.MinDistance = 13f;
             Camera.FollowArenaPull = 0.5f;
             Camera.MinSpread = 12f;
             foreach (var s in Slots) s.Points = 0;
@@ -625,9 +625,9 @@ namespace PotatoParty
             Camera.ArenaCenter = mg.ArenaCenter;
             Camera.ArenaRadius = mg.ArenaRadius;
             Camera.ScreenOffset = Vector3.zero;
-            Camera.MinDistance = 6f;
+            Camera.MinDistance = 13f;
             Camera.FollowArenaPull = mg.CameraPull;
-            Camera.MinSpread = 3.5f;
+            Camera.MinSpread = 8f;
             Camera.SnapNow();
             Lighting.RefreshReflections(world);
         }
@@ -657,7 +657,7 @@ namespace PotatoParty
             }
             Camera.Targets.Clear();
             Camera.ScreenOffset = new Vector3(0, 0, -2f);
-            Camera.MinDistance = 7f;
+            Camera.MinDistance = 11f;
             Camera.FollowArenaPull = 1f;
             Camera.MinSpread = 7f;
             Camera.SnapNow();

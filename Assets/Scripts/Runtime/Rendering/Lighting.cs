@@ -20,7 +20,7 @@ namespace PotatoParty
     /// </summary>
     public static class Lighting
     {
-        public static float SunElevation = 30f, SunAzimuth = -50f, SunIntensityMul = 1.7f;
+        public static float SunElevation = 38f, SunAzimuth = -50f, SunIntensityMul = 1.35f;
         public static float ShadowDistance = 50f;
 
         static Light rim, bounce;

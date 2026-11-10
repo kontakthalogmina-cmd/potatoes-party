@@ -131,8 +131,6 @@ namespace PotatoParty
             Skin = PotatoSkins.Get(skinIndex);
             var body = Skin.BodyColor(c);
             var dark = Skin.SpotColor(c);
-            var belly = Skin.BellyColor(c);
-            var skin = Skin.Face;
             float gloss = Skin.Smoothness;
             Visual = Shapes.Empty("Wyglad", transform, Vector3.zero).transform;
 
@@ -143,16 +141,13 @@ namespace PotatoParty
                 r.sharedMaterial = Shapes.HeroMat(col, part, sm, Skin, skinIndex, c);
                 heroParts.Add(r);
             };
-            var torso = Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, 0.02f, 0), new Vector3(1.02f, 1.32f, 0.96f), body, false, gloss, "Cialo");
+            // bulwa: proceduralna, asymetryczna, z guzami i "oczkami" – każdy gracz ma własny kształt
+            var torso = Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, 0.02f, 0), new Vector3(1.1f, 1.26f, 0.98f), body, false, gloss, "Cialo");
+            torso.GetComponent<MeshFilter>().sharedMesh = PotatoMesh.Get(Slot != null ? Slot.Index * 31 + skinIndex : GetInstanceID());
             hero(torso, body, PotatoPart.Body, gloss);
             Shapes.AddOutline(torso);
-            // jaśniejszy brzuszek i "plamki ziemniaka"
-            hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, -0.22f, 0.3f), new Vector3(0.7f, 0.72f, 0.4f), belly, false, 0.6f), belly, PotatoPart.Belly, gloss * 0.85f);
-            hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0.4f, -0.1f, -0.25f), new Vector3(0.16f, 0.16f, 0.1f), dark, false, 0.5f), dark, PotatoPart.Spot, 0.5f);
-            hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(-0.38f, 0.3f, -0.28f), new Vector3(0.12f, 0.12f, 0.08f), dark, false, 0.5f), dark, PotatoPart.Spot, 0.5f);
-
-            // twarz w "okienku"
-            hero(Shapes.Prim(PrimitiveType.Sphere, Visual, new Vector3(0, 0.22f, 0.33f), new Vector3(0.76f, 0.54f, 0.34f), skin, false, 0.45f, "Twarz"), skin, PotatoPart.Face, 0.45f);
+            // (bez brzuszka, "okienka" twarzy i doklejanych plamek – to robiło z ziemniaka zabawkę;
+            //  plamki, oczka, przetchlinki i siateczkę skórki rysuje teraz shader na samej bulwie)
             var eyes = new Transform[2];
             for (int s = -1; s <= 1; s += 2)
             {

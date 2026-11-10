@@ -20,16 +20,16 @@ namespace PotatoParty
     public static class PostFx
     {
         // ---------------- strojenie ----------------
-        public static float GameFocalLength = 70f;      // mm
+        public static float GameFocalLength = 85f;      // mm
         public static float ShowcaseFocalLength = 105f; // mm
-        public static float MaxPlayerBlurPx = 2.5f;     // px krążka rozmycia na najdalszym/najbliższym graczu
+        public static float MaxPlayerBlurPx = 1.0f;     // px krążka rozmycia na najdalszym/najbliższym graczu
         public static float MinAperture = 1.2f, MaxAperture = 16f;
         public static float ShowcaseAperture = 1.4f;
         public static float MotionBlurPerSpeed = 0.018f; // intensywność na m/s ruchu kamery
         public static float MotionBlurMax = 0.32f;
-        public static float BaseExposure = -0.15f;
+        public static float BaseExposure = -0.35f;
         /// <summary>Filmowy nastrój: przesunięcia nakładane na gradację każdej mapy (0 = stary jasny wygląd).</summary>
-        public static float MoodExposure = -0.45f, MoodContrast = 22f, MoodSaturation = -14f, VignetteBase = 0.42f;
+        public static float MoodExposure = -0.7f, MoodContrast = 16f, MoodSaturation = 4f, VignetteBase = 0.32f;
 
         static Volume volume;
         static Bloom bloom;
@@ -47,7 +47,7 @@ namespace PotatoParty
 
         static bool showcase;
         static Spring punch, flash;
-        static float exposure = -0.15f, vignetteBase = 0.42f, chromaBase = 0.035f, aperture = 8f, focus = 12f;
+        static float exposure = -0.35f, vignetteBase = 0.32f, chromaBase = 0.035f, aperture = 8f, focus = 12f;
         static Runner runner;
 
         public static void Build(Transform parent)
@@ -65,8 +65,8 @@ namespace PotatoParty
             tonemap.mode.Override(TonemappingMode.ACES);
 
             bloom = profile.Add<Bloom>(true);
-            bloom.threshold.Override(0.9f);
-            bloom.intensity.Override(0.55f);
+            bloom.threshold.Override(1.15f);
+            bloom.intensity.Override(0.3f);
             bloom.scatter.Override(0.72f);
             bloom.clamp.Override(40f);
             bloom.highQualityFiltering.Override(true);
@@ -74,8 +74,8 @@ namespace PotatoParty
 
             color = profile.Add<ColorAdjustments>(true);
             color.postExposure.Override(BaseExposure);
-            color.contrast.Override(34f);
-            color.saturation.Override(2f);
+            color.contrast.Override(28f);
+            color.saturation.Override(20f);
 
             white = profile.Add<WhiteBalance>(true);
             white.temperature.Override(0f);
@@ -126,7 +126,7 @@ namespace PotatoParty
 
             grain = profile.Add<FilmGrain>(true);
             grain.type.Override(FilmGrainLookup.Thin1);
-            grain.intensity.Override(0.22f);
+            grain.intensity.Override(0.14f);
             grain.response.Override(0.8f);
 
             ApplyQuality(QualitySettings.GetQualityLevel());
@@ -174,17 +174,17 @@ namespace PotatoParty
             float temp = 0f, tint = 0f, sat = 16f, contrast = 12f, exp = 0.3f, bloomI = 0.32f;
             switch (t.Id)
             {
-                case MapId.Ice: temp = -16f; sat = 8f; exp = 0.22f; bloomI = 0.45f; break;
+                case MapId.Ice: temp = -10f; sat = 10f; exp = -0.2f; bloomI = 0.25f; contrast = 20f; break; // śnieg: bez tego wypala biel
                 case MapId.Volcano: temp = 16f; tint = 4f; sat = 20f; contrast = 18f; exp = 0.12f; bloomI = 0.6f; break;
                 case MapId.Cornfield: temp = 14f; sat = 18f; break;
-                case MapId.Beach: temp = 5f; sat = 20f; exp = 0.38f; break;
+                case MapId.Beach: temp = 5f; sat = 20f; exp = 0.05f; break;
                 case MapId.Forest: temp = -5f; tint = -6f; sat = 14f; contrast = 14f; break;
                 case MapId.Kitchen: temp = 9f; sat = 12f; break;
                 case MapId.Canteen: temp = -2f; sat = 10f; break;
                 case MapId.Garden: tint = 4f; sat = 18f; break;
                 case MapId.Orchard: temp = 7f; sat = 18f; break;
             }
-            exp += MoodExposure; contrast += MoodContrast; sat += MoodSaturation; bloomI += 0.2f;
+            exp += MoodExposure; contrast += MoodContrast; sat += MoodSaturation; bloomI *= 0.7f;
             vignetteBase = VignetteBase;
             white.temperature.Override(temp);
             white.tint.Override(tint);
