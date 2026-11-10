@@ -26,7 +26,7 @@ namespace PotatoParty
         public static float ChainWindow = 0.5f;
         public static float ChainFalloff = 0.65f;
         /// <summary>Twardy limit łącznego hit-stopu na sekundę rzeczywistą.</summary>
-        public static float MaxStopPerSecond = 0.22f;
+        public static float MaxStopPerSecond = 0.3f;
 
         static TimeDirector instance;
 

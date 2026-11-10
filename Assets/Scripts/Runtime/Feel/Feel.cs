@@ -19,10 +19,10 @@ namespace PotatoParty
     public static class Feel
     {
         // ---------------- strojenie ----------------
-        public static float DashStopMin = 0.055f, DashStopMax = 0.11f;
-        public static float EnvStopMin = 0.03f, EnvStopMax = 0.07f;
+        public static float DashStopMin = 0.08f, DashStopMax = 0.16f;
+        public static float EnvStopMin = 0.05f, EnvStopMax = 0.1f;
         public static float HitImpulseMin = 0.10f, HitImpulseMax = 0.22f;
-        public static float KnockoutSlowScale = 0.25f;
+        public static float KnockoutSlowScale = 0.15f;
 
         static CinematicCamera Cam { get { return GameManager.Instance != null ? GameManager.Instance.Camera : null; } }
 

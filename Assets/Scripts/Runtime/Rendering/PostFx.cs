@@ -20,14 +20,16 @@ namespace PotatoParty
     public static class PostFx
     {
         // ---------------- strojenie ----------------
-        public static float GameFocalLength = 85f;      // mm
+        public static float GameFocalLength = 70f;      // mm
         public static float ShowcaseFocalLength = 105f; // mm
-        public static float MaxPlayerBlurPx = 1.2f;     // px krążka rozmycia na najdalszym/najbliższym graczu
-        public static float MinAperture = 1.8f, MaxAperture = 16f;
-        public static float ShowcaseAperture = 2.2f;
+        public static float MaxPlayerBlurPx = 2.5f;     // px krążka rozmycia na najdalszym/najbliższym graczu
+        public static float MinAperture = 1.2f, MaxAperture = 16f;
+        public static float ShowcaseAperture = 1.4f;
         public static float MotionBlurPerSpeed = 0.018f; // intensywność na m/s ruchu kamery
         public static float MotionBlurMax = 0.32f;
-        public static float BaseExposure = 0.3f;
+        public static float BaseExposure = -0.15f;
+        /// <summary>Filmowy nastrój: przesunięcia nakładane na gradację każdej mapy (0 = stary jasny wygląd).</summary>
+        public static float MoodExposure = -0.45f, MoodContrast = 22f, MoodSaturation = -14f, VignetteBase = 0.42f;
 
         static Volume volume;
         static Bloom bloom;
@@ -45,7 +47,7 @@ namespace PotatoParty
 
         static bool showcase;
         static Spring punch, flash;
-        static float exposure = 0.3f, vignetteBase = 0.22f, chromaBase = 0.035f, aperture = 8f, focus = 12f;
+        static float exposure = -0.15f, vignetteBase = 0.42f, chromaBase = 0.035f, aperture = 8f, focus = 12f;
         static Runner runner;
 
         public static void Build(Transform parent)
@@ -63,8 +65,8 @@ namespace PotatoParty
             tonemap.mode.Override(TonemappingMode.ACES);
 
             bloom = profile.Add<Bloom>(true);
-            bloom.threshold.Override(1.0f);
-            bloom.intensity.Override(0.32f);
+            bloom.threshold.Override(0.9f);
+            bloom.intensity.Override(0.55f);
             bloom.scatter.Override(0.72f);
             bloom.clamp.Override(40f);
             bloom.highQualityFiltering.Override(true);
@@ -72,21 +74,21 @@ namespace PotatoParty
 
             color = profile.Add<ColorAdjustments>(true);
             color.postExposure.Override(BaseExposure);
-            color.contrast.Override(12f);
-            color.saturation.Override(16f); // ACES zjada nasycenie – oddajemy je tutaj
+            color.contrast.Override(34f);
+            color.saturation.Override(2f);
 
             white = profile.Add<WhiteBalance>(true);
             white.temperature.Override(0f);
             white.tint.Override(0f);
 
             split = profile.Add<SplitToning>(true);
-            split.shadows.Override(new Color(0.40f, 0.46f, 0.64f));
-            split.highlights.Override(new Color(0.64f, 0.55f, 0.44f));
-            split.balance.Override(8f);
+            split.shadows.Override(new Color(0.22f, 0.42f, 0.58f)); // teal
+            split.highlights.Override(new Color(0.78f, 0.52f, 0.30f)); // pomarańcz
+            split.balance.Override(-12f);
 
             // "Aksamitna Bulwa": cienie chłodne i lekko fioletowe, nigdy szare; światła ciepłe
             smh = profile.Add<ShadowsMidtonesHighlights>(true);
-            smh.shadows.Override(new Vector4(0.93f, 0.94f, 1.09f, -0.02f));
+            smh.shadows.Override(new Vector4(0.88f, 0.95f, 1.12f, -0.12f));
             smh.midtones.Override(new Vector4(1f, 1f, 1f, 0f));
             smh.highlights.Override(new Vector4(1.04f, 1.01f, 0.95f, 0f));
             smh.shadowsStart.Override(0f);
@@ -111,9 +113,9 @@ namespace PotatoParty
 
             vignette = profile.Add<Vignette>(true);
             vignette.intensity.Override(vignetteBase);
-            vignette.smoothness.Override(0.45f);
+            vignette.smoothness.Override(0.38f);
             vignette.rounded.Override(false);
-            vignette.color.Override(Shapes.Hex("#140F33"));
+            vignette.color.Override(Shapes.Hex("#05040C"));
 
             chroma = profile.Add<ChromaticAberration>(true);
             chroma.intensity.Override(chromaBase); // obiektyw: delikatne rozszczepienie na brzegach
@@ -124,7 +126,7 @@ namespace PotatoParty
 
             grain = profile.Add<FilmGrain>(true);
             grain.type.Override(FilmGrainLookup.Thin1);
-            grain.intensity.Override(0.12f);
+            grain.intensity.Override(0.22f);
             grain.response.Override(0.8f);
 
             ApplyQuality(QualitySettings.GetQualityLevel());
@@ -182,6 +184,8 @@ namespace PotatoParty
                 case MapId.Garden: tint = 4f; sat = 18f; break;
                 case MapId.Orchard: temp = 7f; sat = 18f; break;
             }
+            exp += MoodExposure; contrast += MoodContrast; sat += MoodSaturation; bloomI += 0.2f;
+            vignetteBase = VignetteBase;
             white.temperature.Override(temp);
             white.tint.Override(tint);
             color.saturation.Override(sat);

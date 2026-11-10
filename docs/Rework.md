@@ -409,3 +409,28 @@ Po zbudowaniu grafu wystarczy Play – `Vfx` sam go znajdzie i przestanie używa
 - Najbardziej prawdopodobne miejsca na drobne błędy przy pierwszym otwarciu: nazwy pól Cinemachine 3
   (`CinemachineImpulseDefinition.ImpulseShapes`, `CinemachineBrain.UpdateMethods`), wersje pakietów w manifeście.
   Jeśli konsola coś pokaże, wklej mi błąd – poprawka to zwykle jedna linijka.
+
+## Strojenie v2 – "diametralnie" (2026-11-10)
+
+Po pierwszym teście wszystkie gałki przesunięte w stronę kina. Każdą można cofnąć w kodzie (pola publiczne).
+
+| Gdzie | Pole | Było | Jest |
+|---|---|---|---|
+| CinematicCamera | PitchNear / PitchFar | 34° / 52° | **20° / 38°** |
+| CinematicCamera | MinDistance / MaxDistance | 9 / 30 m | **6 / 22 m** |
+| CinematicCamera | FrameMargin | 2.2 m | **1.3 m** |
+| CinematicCamera | BaseFov / ShowcaseFov / ShowcasePitch | 38 / 30 / 22° | **34 / 26 / 12°** |
+| GameManager | MinDistance menu / lobby / gra / podium | 13 / 11 / 9 / 10 | **9 / 7.5 / 6 / 7** |
+| PostFx | MoodExposure / MoodContrast / MoodSaturation | – | **−0.45 / +22 / −14** (dodawane do gradacji mapy) |
+| PostFx | Vignette intensity / smoothness / kolor | 0.22 / 0.45 / #140F33 | **0.42 / 0.38 / #05040C** |
+| PostFx | Split toning cienie / światła / balans | fiolet / beż / 8 | **teal (0.22,0.42,0.58) / pomarańcz (0.78,0.52,0.30) / −12** |
+| PostFx | Bloom threshold / intensity | 1.0 / 0.32 | **0.9 / 0.55 (+0.2 na mapie)** |
+| PostFx | DoF: ogniskowa / maks. rozmycie graczy / min. przysłona | 85 mm / 1.2 px / f1.8 | **70 mm / 2.5 px / f1.2** |
+| PostFx | Film grain | 0.12 | **0.22** |
+| Lighting | Słońce: wysokość / mnożnik / cień | 42° / 1.45 / 0.9 | **30° / 1.7 / 1.0** |
+| Lighting | Ambient niebo / horyzont / ziemia | ×0.85 / 0.6 / 0.4 | **×0.5 / 0.34 / 0.2** |
+| Lighting | Mgła start / koniec | 38 / 160 m | **18 / 95 m** |
+| Impulses | Strength (globalny mnożnik wstrząsów) | 1.0 | **1.7** |
+| Feel | Hit stop zrywu / otoczenia | 55–110 / 30–70 ms | **80–160 / 50–100 ms** |
+| Feel | Knockout slow-mo | 0.25× | **0.15×** |
+| TimeDirector | MaxStopPerSecond | 0.22 s | **0.3 s** |

@@ -20,7 +20,7 @@ namespace PotatoParty
     /// </summary>
     public static class Lighting
     {
-        public static float SunElevation = 42f, SunAzimuth = -50f, SunIntensityMul = 1.45f;
+        public static float SunElevation = 30f, SunAzimuth = -50f, SunIntensityMul = 1.7f;
         public static float ShadowDistance = 50f;
 
         static Light rim, bounce;
@@ -30,7 +30,7 @@ namespace PotatoParty
         public static void Setup(Camera cam, Light sun)
         {
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.9f;
+            sun.shadowStrength = 1f;
             sun.shadowBias = 0.02f;
             sun.shadowNormalBias = 0.25f;
             sun.shadowNearPlane = 0.2f;
@@ -112,16 +112,16 @@ namespace PotatoParty
             else cam.clearFlags = CameraClearFlags.SolidColor;
 
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = Color.Lerp(Shapes.Hex("#CFE6FF"), t.Sky, 0.3f) * 0.85f;
-            RenderSettings.ambientEquatorColor = Color.Lerp(Shapes.Hex("#E9EEF2"), t.Ambient, 0.4f) * 0.6f;
-            RenderSettings.ambientGroundColor = Color.Lerp(Shapes.Hex("#9C8E7C"), t.Land, 0.4f) * 0.4f;
+            RenderSettings.ambientSkyColor = Color.Lerp(Shapes.Hex("#CFE6FF"), t.Sky, 0.3f) * 0.5f;
+            RenderSettings.ambientEquatorColor = Color.Lerp(Shapes.Hex("#E9EEF2"), t.Ambient, 0.4f) * 0.34f;
+            RenderSettings.ambientGroundColor = Color.Lerp(Shapes.Hex("#9C8E7C"), t.Land, 0.4f) * 0.2f;
 
             // perspektywa powietrzna: bliska kamera = mgła zaczyna się bliżej, tło "odpływa" w głąb
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = horizon;
-            RenderSettings.fogStartDistance = 38f;
-            RenderSettings.fogEndDistance = 160f;
+            RenderSettings.fogStartDistance = 18f;
+            RenderSettings.fogEndDistance = 95f;
 
             sun.color = t.SunColor;
             sun.intensity = t.SunIntensity * SunIntensityMul;

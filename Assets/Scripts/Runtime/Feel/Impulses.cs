@@ -36,7 +36,7 @@ namespace PotatoParty
     public static class Impulses
     {
         /// <summary>Globalny mnożnik (ustawienia: "Wstrząsy ekranu"). 0 = wyłączone.</summary>
-        public static float Strength = 1f;
+        public static float Strength = 1.7f;
 
         static CinemachineImpulseSource[] sources;
 
