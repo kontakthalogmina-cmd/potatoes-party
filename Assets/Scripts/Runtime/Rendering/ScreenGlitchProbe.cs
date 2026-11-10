@@ -4,13 +4,12 @@ using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
-using UnityEngine.Rendering;
 
 namespace PotatoParty
 {
     /// <summary>
-    /// Czujnik "jednolitego ekranu". Co 0.1 s (czas rzeczywisty) kopiuje gotową klatkę (z UI) do RT,
-    /// zmniejsza do 16×9 i czyta asynchronicznie z GPU (bez zatrzymania potoku). Gdy rozrzut kolorów
+    /// Czujnik "jednolitego ekranu". Co 0.25 s (czas rzeczywisty) czyta gotową klatkę (z UI) po WaitForEndOfFrame
+    /// i próbkuje ją siatką 16×9. Gdy rozrzut kolorów
     /// we wszystkich 144 próbkach &lt; 2% (ekran jednolity) w trakcie gry, zapisuje do Editor.log / Player.log
     /// pełną migawkę: stan gry, czas, kamerę, efekty obrazu i 10 ostatnich zdarzeń "feel", plus zrzut PNG
     /// (maks. 5 na sesję) w <see cref="Application.persistentDataPath"/>.
@@ -18,15 +17,14 @@ namespace PotatoParty
     /// </summary>
     public class ScreenGlitchProbe : MonoBehaviour
     {
-        public static float Interval = 0.1f, UniformThreshold = 0.02f;
+        public static float Interval = 0.25f, UniformThreshold = 0.02f;
         const int W = 16, H = 9, MaxShots = 5;
 
         static ScreenGlitchProbe instance;
         static readonly string[] events = new string[10];
         static int eventHead;
 
-        RenderTexture full, small;
-        bool pending;
+        Texture2D frame;
         int shots;
         float lastReport = -10f;
         bool inGlitch;
@@ -50,7 +48,6 @@ namespace PotatoParty
 
         void Start()
         {
-            if (!SystemInfo.supportsAsyncGPUReadback) { enabled = false; return; }
             StartCoroutine(Loop());
         }
 
@@ -61,36 +58,37 @@ namespace PotatoParty
             {
                 yield return new WaitForSecondsRealtime(Interval);
                 yield return eof;
-                if (pending || Screen.width < 16 || Screen.height < 9) continue;
-                if (full == null || full.width != Screen.width || full.height != Screen.height)
+                if (Screen.width < 16 || Screen.height < 9) continue;
+                if (frame == null || frame.width != Screen.width || frame.height != Screen.height)
                 {
-                    if (full != null) full.Release();
-                    full = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
-                    small = small ?? new RenderTexture(W, H, 0, RenderTextureFormat.ARGB32);
+                    if (frame != null) Destroy(frame);
+                    frame = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
                 }
-                ScreenCapture.CaptureScreenshotIntoRenderTexture(full);
-                Graphics.Blit(full, small);
-                pending = true;
-                AsyncGPUReadback.Request(small, 0, TextureFormat.RGBA32, OnReadback);
+                // gotowy backbuffer (z UI) po WaitForEndOfFrame; moduł ScreenCapture nie jest w projekcie
+                frame.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0, false);
+                Analyze();
             }
         }
 
-        void OnReadback(AsyncGPUReadbackRequest req)
+        void Analyze()
         {
-            pending = false;
-            if (req.hasError) return;
-            var data = req.GetData<Color32>();
-            if (data.Length == 0) return;
             float mr = 0, mg = 0, mb = 0;
-            for (int i = 0; i < data.Length; i++) { mr += data[i].r; mg += data[i].g; mb += data[i].b; }
-            float n = data.Length * 255f;
+            var px = new Color[W * H];
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    var c = frame.GetPixel((int)((x + 0.5f) / W * frame.width), (int)((y + 0.5f) / H * frame.height));
+                    px[y * W + x] = c;
+                    mr += c.r; mg += c.g; mb += c.b;
+                }
+            float n = px.Length;
             mr /= n; mg /= n; mb /= n;
             float spread = 0f;
-            for (int i = 0; i < data.Length; i++)
+            for (int i = 0; i < px.Length; i++)
             {
-                spread = Mathf.Max(spread, Mathf.Abs(data[i].r / 255f - mr));
-                spread = Mathf.Max(spread, Mathf.Abs(data[i].g / 255f - mg));
-                spread = Mathf.Max(spread, Mathf.Abs(data[i].b / 255f - mb));
+                spread = Mathf.Max(spread, Mathf.Abs(px[i].r - mr));
+                spread = Mathf.Max(spread, Mathf.Abs(px[i].g - mg));
+                spread = Mathf.Max(spread, Mathf.Abs(px[i].b - mb));
             }
 
             var gm = GameManager.Instance;
@@ -149,7 +147,8 @@ namespace PotatoParty
             {
                 shots++;
                 var path = System.IO.Path.Combine(Application.persistentDataPath, "glitch_" + System.DateTime.Now.ToString("HHmmss") + "_" + shots + ".png");
-                ScreenCapture.CaptureScreenshot(path);
+                frame.Apply(false);
+                System.IO.File.WriteAllBytes(path, frame.EncodeToPNG());
                 sb.Append("\nzrzut: ").Append(path);
             }
             Debug.LogWarning(sb.ToString());
@@ -174,8 +173,7 @@ namespace PotatoParty
 
         void OnDestroy()
         {
-            if (full != null) full.Release();
-            if (small != null) small.Release();
+            if (frame != null) Destroy(frame);
         }
     }
 }

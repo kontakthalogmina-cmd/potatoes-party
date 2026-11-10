@@ -485,5 +485,5 @@ Nowe API: `Potato.KnockMultiplier`, `Potato.ActionPressed`, `Potato.Landed` (sta
 - Logi Editor.log z sesji gry: 0 wyjątków runtime, 0 NaN → problem czysto renderingowy.
 - Bloom: clamp 40 → 8, scatter 0.72 → 0.6. Błysk ekspozycji: +1.2 EV → +0.5 EV. `Fx.FlashLight` ≤ 6 (było do 30).
 - Motion blur = 0, gdy kamera przesuwa się > 25 m/s (cięcie).
-- `Rendering/ScreenGlitchProbe.cs`: co 0.1 s próbka 16×9 gotowej klatki (AsyncGPUReadback); jednolity ekran (rozrzut < 2%) → log `[Potatoes Party] GLITCH` ze stanem kamery/efektów/10 zdarzeń + PNG w persistentDataPath. F6 bloom, F7 DoF, F8 motion blur, F9 cały post.
+- `Rendering/ScreenGlitchProbe.cs`: co 0.25 s próbka 16×9 gotowej klatki (ReadPixels po WaitForEndOfFrame; moduł ScreenCapture nie jest w manifeście); jednolity ekran (rozrzut < 2%) → log `[Potatoes Party] GLITCH` ze stanem kamery/efektów/10 zdarzeń + PNG w persistentDataPath. F6 bloom, F7 DoF, F8 motion blur, F9 cały post.
 - DeepFryGame: State pattern (Warmup 5 s → Frying → SpitWarn 2 s → Spitting 3 s → Frying; Finale w ostatnich 20 s: wrzut ×2, prychanie co 12 s). Złote strzępki ×5 na dachu szopy (6 m), zbiorniku (9 m) i tarasie co 15 s (finał co 8 s).
