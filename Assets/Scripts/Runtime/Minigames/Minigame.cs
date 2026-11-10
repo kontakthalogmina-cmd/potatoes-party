@@ -218,6 +218,7 @@ namespace PotatoParty
             p.Eliminated = true;
             EliminatedOrder.Add(p);
             AudioManager.Play(fell ? Sfx.Fall : Sfx.Explosion, 0.8f);
+            Feel.Knockout(p);
             p.SetHidden(true);
             GM.Hud.Toast(p.Slot.Name + (message ?? (fell ? " odpada!" : " wylatuje w powietrze!")), p.Color);
             OnEliminated(p);

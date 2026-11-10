@@ -120,7 +120,7 @@ namespace PotatoParty
     {
         public static void ApplyAtmosphere(MapTheme t, Camera cam, Light sun)
         {
-            Look.Daylight(t, cam, sun);
+            Lighting.Daylight(t, cam, sun);
         }
 
         /// <summary>Płaski dysk (walec) z dokładnym colliderem siatki zamiast kapsuły.</summary>

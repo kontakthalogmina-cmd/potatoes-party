@@ -19,7 +19,7 @@ namespace PotatoParty.EditorTools
         const string ScenePath = "Assets/Scenes/PotatoesParty.unity";
         const string SettingsDir = "Assets/Settings";
         const string ResourcesDir = "Assets/Resources/PotatoParty";
-        const string DoneKey = "PotatoParty.SetupDone.v6";
+        const string DoneKey = "PotatoParty.SetupDone.v7";
 
         static ProjectSetup()
         {
@@ -51,8 +51,11 @@ namespace PotatoParty.EditorTools
                 EnsureFolder("Assets/Resources");
                 EnsureFolder(ResourcesDir);
 
+                EnsureFolder(ResourcesDir + "/VFX");
+
                 EnsureUrp();
                 EnsureMaterials();
+                EnsureInputHandling();
                 EnsureScene();
 
                 PlayerSettings.productName = "Potatoes Party";
@@ -65,6 +68,22 @@ namespace PotatoParty.EditorTools
                 Debug.LogWarning("[Potatoes Party] Nie udało się dokończyć automatycznej konfiguracji: " + e.Message +
                                  "\nGra i tak zadziała po wciśnięciu Play.");
             }
+        }
+
+        /// <summary>
+        /// Pady i wibracje wymagają nowego Input System. "Both" (2) zostawia też stary Input Manager,
+        /// więc klawiatura działa w obu trybach. Zmiana działa po restarcie edytora.
+        /// </summary>
+        static void EnsureInputHandling()
+        {
+            var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+            if (assets == null || assets.Length == 0) return;
+            var so = new SerializedObject(assets[0]);
+            var p = so.FindProperty("activeInputHandler");
+            if (p == null || p.intValue == 2) return;
+            p.intValue = 2;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            Debug.Log("[Potatoes Party] Włączono Input System (Both). Zrestartuj edytor, żeby działały pady i wibracje.");
         }
 
         static void EnsureFolder(string path)
@@ -118,6 +137,18 @@ namespace PotatoParty.EditorTools
             // Dużo kolorowych świateł punktowych (pochodnie, kryształy): liczone na piksel, do 8 na obiekt
             SetInt(so, "m_AdditionalLightsRenderingMode", 1);
             SetInt(so, "m_AdditionalLightsPerObjectLimit", 8);
+            // ---- rework filmowy: HDR 64-bit, gradacja w HDR (ACES), cienie pod bliską kamerę ----
+            SetInt(so, "m_HDRColorBufferPrecision", 1);          // 64 bity: brak pasków w bloomie i mgle
+            SetInt(so, "m_ColorGradingMode", 1);                 // High Dynamic Range
+            SetInt(so, "m_ColorGradingLutSize", 32);
+            SetFloat(so, "m_ShadowDistance", 50f);
+            SetVector3(so, "m_Cascade4Split", new Vector3(0.08f, 0.22f, 0.48f));
+            SetFloat(so, "m_CascadeBorder", 0.15f);
+            SetFloat(so, "m_ShadowDepthBias", 0.6f);
+            SetFloat(so, "m_ShadowNormalBias", 0.5f);
+            SetBool(so, "m_AdditionalLightShadowsSupported", true); // snop areny rzuca miękki cień kontaktowy
+            SetInt(so, "m_AdditionalLightsShadowmapResolution", 2048);
+            SetBool(so, "m_SupportsCameraOpaqueTexture", false);
             so.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(asset);
             EnsurePostProcessData(asset);
@@ -185,9 +216,9 @@ namespace PotatoParty.EditorTools
 
                 // ustawienia: delikatne, miękkie AO pasujące do jasnego stylu
                 var fso = new SerializedObject(feature);
-                SetFloat(fso, "m_Settings.Intensity", 0.6f);
-                SetFloat(fso, "m_Settings.Radius", 0.35f);
-                SetFloat(fso, "m_Settings.DirectLightingStrength", 0.2f);
+                SetFloat(fso, "m_Settings.Intensity", 1.0f);
+                SetFloat(fso, "m_Settings.Radius", 0.4f);
+                SetFloat(fso, "m_Settings.DirectLightingStrength", 0.25f);
                 SetBool(fso, "m_Settings.Downsample", false);
                 fso.ApplyModifiedPropertiesWithoutUndo();
 
@@ -213,6 +244,7 @@ namespace PotatoParty.EditorTools
             }
         }
 
+        static void SetVector3(SerializedObject so, string name, Vector3 v) { var p = so.FindProperty(name); if (p != null) p.vector3Value = v; }
         static void SetInt(SerializedObject so, string name, int v) { var p = so.FindProperty(name); if (p != null) p.intValue = v; }
         static void SetFloat(SerializedObject so, string name, float v) { var p = so.FindProperty(name); if (p != null) p.floatValue = v; }
         static void SetBool(SerializedObject so, string name, bool v) { var p = so.FindProperty(name); if (p != null) p.boolValue = v; }

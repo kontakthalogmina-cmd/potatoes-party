@@ -23,7 +23,7 @@ namespace PotatoParty
         public bool JoinedAsGuest;
         public string JoinedHostName;
 
-        public SharedCamera Camera { get; private set; }
+        public CinematicCamera Camera { get; private set; }
         public Light Sun { get; private set; }
         public MenuUI Menu { get; private set; }
         public Hud Hud { get; private set; }
@@ -62,12 +62,14 @@ namespace PotatoParty
 
             // Usuń domyślną kamerę/światło ze sceny, jeśli jakieś są — gra ma własne.
             foreach (var cam in UnityEngine.Camera.allCameras)
-                if (cam.GetComponent<SharedCamera>() == null) Destroy(cam.gameObject);
+                if (cam.GetComponentInParent<CinematicCamera>() == null) Destroy(cam.gameObject);
 
             AudioManager.Create(transform);
             GameSettings.Load();
 
-            Camera = SharedCamera.Create();
+            TimeDirector.Ensure();
+            Time.fixedDeltaTime = TimeDirector.BaseFixedDelta;
+            Camera = CinematicCamera.Create();
             Camera.transform.SetParent(transform, false);
 
             var sunGo = new GameObject("Slonce");
@@ -78,7 +80,7 @@ namespace PotatoParty
             Sun.shadows = LightShadows.Soft;
             Sun.shadowStrength = 0.6f;
             RenderSettings.sun = Sun;
-            Look.Setup(Camera.Cam, Sun);
+            Lighting.Setup(Camera.Cam, Sun);
             Fx.Camera = Camera;
 
             UIKit.EnsureEventSystem();
@@ -105,9 +107,17 @@ namespace PotatoParty
             wander.Clear();
             wanderTime.Clear();
             Camera.Targets.Clear();
+            Vfx.ClearAll();
             if (world != null) Destroy(world.gameObject);
             world = new GameObject("Swiat").transform;
             world.SetParent(transform, false);
+        }
+
+        /// <summary>Tryb pokazowy (menu, lobby, podium): niska kamera z wolnym ruchem i płytka głębia ostrości.</summary>
+        void Showcase(bool on)
+        {
+            Camera.Showcase = on;
+            PostFx.SetShowcase(on);
         }
 
         void BuildStage(MapTheme theme, float radius, bool wardrobe = false)
@@ -121,7 +131,7 @@ namespace PotatoParty
             if (radius >= MapBuilder.HubRadius - 0.01f) pads = MapBuilder.BuildHub(world, theme, wardrobe);
             Camera.ArenaCenter = Vector3.zero;
             Camera.ArenaRadius = radius;
-            Look.RefreshReflections(world);
+            Lighting.RefreshReflections(world);
         }
 
         Potato Spawn(PlayerSlot slot, Vector3 pos)
@@ -157,9 +167,9 @@ namespace PotatoParty
             Slots.Clear();
             State = GameState.MainMenu;
             BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius);
-            Look.SetBackgroundBlur(true, 26f, 60f);
-            Camera.ScreenOffset = new Vector3(-6.5f, 0, 0);
-            Camera.MinDistance = 16f;
+            Showcase(true);
+            Camera.ScreenOffset = new Vector3(-5.5f, 0, 0);
+            Camera.MinDistance = 13f;
             Camera.FollowArenaPull = 1f;
             Camera.MinSpread = 16f;
             for (int i = 0; i < 4; i++)
@@ -230,9 +240,9 @@ namespace PotatoParty
             StopMatch();
             State = GameState.Lobby;
             BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius, true);
-            Look.SetBackgroundBlur(true, 34f, 80f);
+            Showcase(true);
             Camera.ScreenOffset = Vector3.zero;
-            Camera.MinDistance = 15f;
+            Camera.MinDistance = 11f;
             Camera.FollowArenaPull = 0.5f;
             Camera.MinSpread = 12f;
             foreach (var s in Slots) s.Points = 0;
@@ -469,7 +479,8 @@ namespace PotatoParty
             Current = null;
             InMatch = false;
             Paused = false;
-            Time.timeScale = 1f;
+            TimeDirector.ResetAll();
+            Rumble.StopAll();
             Menu.HideOverlays();
             Loading.Hide();
         }
@@ -596,7 +607,7 @@ namespace PotatoParty
         {
             ClearWorld();
             SkinFx.SetMap(theme);
-            Look.SetBackgroundBlur(false);
+            Showcase(false);
             MapBuilder.ApplyAtmosphere(theme, Camera.Cam, Sun);
             MapBuilder.BuildEnvironment(theme, world, mg.ArenaRadius);
             mg.Setup(this, theme, world);
@@ -613,17 +624,17 @@ namespace PotatoParty
             Camera.ArenaCenter = mg.ArenaCenter;
             Camera.ArenaRadius = mg.ArenaRadius;
             Camera.ScreenOffset = Vector3.zero;
-            Camera.MinDistance = 12f;
+            Camera.MinDistance = 9f;
             Camera.FollowArenaPull = mg.CameraPull;
-            Camera.MinSpread = 7f;
+            Camera.MinSpread = 5f;
             Camera.SnapNow();
-            Look.RefreshReflections(world);
+            Lighting.RefreshReflections(world);
         }
 
         void ShowChampions(List<PlayerSlot> champs)
         {
             BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius);
-            Look.SetBackgroundBlur(true, 24f, 55f);
+            Showcase(true);
             // Podium
             MapBuilder.Disc(world, new Vector3(0, 0.4f, 0), 2.5f, 0.8f, UIKit.Yellow);
             for (int i = 0; i < champs.Count; i++)
@@ -645,9 +656,9 @@ namespace PotatoParty
             }
             Camera.Targets.Clear();
             Camera.ScreenOffset = new Vector3(0, 0, -2f);
-            Camera.MinDistance = 13f;
+            Camera.MinDistance = 10f;
             Camera.FollowArenaPull = 1f;
-            Camera.MinSpread = 8f;
+            Camera.MinSpread = 7f;
             Camera.SnapNow();
             // Ludzie też mogą skakać z radości
             foreach (var p in Potatoes) if (!p.Slot.IsBot) p.Frozen = false;
@@ -678,7 +689,8 @@ namespace PotatoParty
         public void SetPaused(bool on)
         {
             Paused = on;
-            Time.timeScale = on ? 0f : 1f;
+            TimeDirector.SetPaused(on);
+            if (on) Rumble.StopAll();
             if (on) Menu.ShowPause();
             else Menu.HidePause();
         }

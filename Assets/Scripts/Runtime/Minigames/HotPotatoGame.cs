@@ -106,7 +106,6 @@ namespace PotatoParty
             nextBombDelay = 1.6f;
             Vector3 c = victim.transform.position;
             Effects.Explosion(Root, c, 2.8f);
-            GM.Camera.Shake(0.6f);
             foreach (var o in Alive)
             {
                 if (o == victim) continue;

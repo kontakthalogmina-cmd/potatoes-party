@@ -11,6 +11,9 @@ namespace PotatoParty
     {
         public static MapTheme Map;
 
+        /// <summary>Kolor kurzu spod stóp na bieżącej mapie (VFX Graph i zapasowe cząsteczki).</summary>
+        public static Color GroundDustColor { get { return Fx.DustColor; } }
+
         static readonly Color Soil = Shapes.Hex("#4A3020");
         static readonly Color Sand = Shapes.Hex("#D9B878");
         static readonly Color Grass = Shapes.Hex("#4F7A2E");
@@ -76,7 +79,7 @@ namespace PotatoParty
         public static void OnLand(Potato p, Vector3 point, float impact)
         {
             var parent = p.transform.parent;
-            Fx.Dust(parent, point, Mathf.Clamp(impact / 8f, 0.6f, 1.4f), 7);
+            Vfx.HeavyLanding(parent, point, Mathf.InverseLerp(4f, 20f, impact));
             if (p.Surface == null || Map == null) return;
             if (Map.Id == MapId.Ice) { p.Surface.Freeze(0.04f); return; }
             var stain = GroundStain(Map);
@@ -86,7 +89,7 @@ namespace PotatoParty
         /// <summary>Uderzenie zrywem: plama od strony uderzenia (podłoże mapy).</summary>
         public static void OnHit(Potato victim, Potato hitter)
         {
-            // efekt trafienia (gwiazdka, iskry, kamera, hit-stop) robi GameFeel.DashHit
+            // efekt trafienia (gwiazdka, iskry, kamera, hit-stop) robi Feel.DashHit
             if (victim.Surface == null || Map == null) return;
             var stain = GroundStain(Map);
             if (stain.HasValue && Map.Id != MapId.Kitchen && Map.Id != MapId.Volcano)
@@ -113,6 +116,7 @@ namespace PotatoParty
                 if (s != null)
                 {
                     s.Wash();
+                    s.Soak(1f);
                     if (Map.Id == MapId.Ice) { s.Freeze(0.9f); Fx.FrostBurst(fxParent, surface + Vector3.up * 0.5f, 1.4f); }
                 }
             }
@@ -126,6 +130,13 @@ namespace PotatoParty
         public static void Tick(Potato p, float dt)
         {
             if (p.Surface == null || Map == null || !p.Grounded) return;
+            // bieg po suchym podłożu zostawia kurz na stopach i nogach (narasta przez całą minigrę)
+            if (p.Body != null && !p.Body.isKinematic && Map.Id != MapId.Ice)
+            {
+                var v = Phys.GetVelocity(p.Body);
+                float speed = new Vector2(v.x, v.z).magnitude;
+                if (speed > 5f && p.Surface.Dust < 0.55f) p.Surface.AddDust(dt * 0.012f * (speed / 7.5f), GroundDustColor);
+            }
             if (Map.Id == MapId.Volcano && p.Surface.Burn < 0.22f)
                 p.Surface.Scorch(p.transform.position + Vector3.down * 2f, dt * 0.012f, 0.35f);
         }

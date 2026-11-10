@@ -21,7 +21,7 @@ namespace PotatoParty
         /// <summary>Kolor kurzu dla bieżącej mapy (piasek, śnieg, sadza...). Ustawiany przy budowie mapy.</summary>
         public static Color DustColor = new Color(0.93f, 0.9f, 0.84f, 0.8f);
         /// <summary>Kamera do wstrząsów (ustawiana przez GameManager).</summary>
-        public static SharedCamera Camera;
+        public static CinematicCamera Camera;
 
         // =====================================================================
         //  Tekstury
@@ -292,7 +292,7 @@ namespace PotatoParty
         /// <summary>Wstrząs kamery (ograniczony, żeby nie męczył przy wielu wybuchach naraz).</summary>
         public static void Shake(float amount)
         {
-            if (Camera != null) Camera.Shake(Mathf.Min(amount, 0.6f));
+            Feel.Shake(Mathf.Min(amount, 0.6f));
         }
 
         /// <summary>Krótki błysk światła (wybuch, uderzenie pioruna, zryw).</summary>
@@ -336,6 +336,9 @@ namespace PotatoParty
         /// <summary>Wybuch: błysk, kula ognia, iskry, dym, fala uderzeniowa, światło i wstrząs.</summary>
         public static void Explosion(Transform parent, Vector3 pos, float size)
         {
+            // pełne sprzężenie (hit stop, slow-mo, impuls, wibracje) + VFX Graph, jeśli jest w projekcie
+            Feel.Explosion(pos, Mathf.Clamp01(size / 1.6f));
+            if (Vfx.Explosion(pos, size)) { FlashLight(parent, pos, new Color(1f, 0.6f, 0.25f), 6f * size, 14f, 0.22f); return; }
             float s = Mathf.Max(0.3f, size);
 
             var flash = Make("Wybuch blysk", parent, pos, Tex.Dot, true);
@@ -460,6 +463,7 @@ namespace PotatoParty
         /// <summary>Rozbryzg cieczy (woda, farba, błoto, zupa): kropelki z grawitacją + plama-pierścień.</summary>
         public static void Splash(Transform parent, Vector3 pos, Color c, float size = 1f, int count = 24)
         {
+            if (Vfx.Splash(pos, c, size)) return;
             var ps = Make("Rozbryzg", parent, pos, Tex.Dot, false);
             var m = ps.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.9f);
@@ -480,6 +484,7 @@ namespace PotatoParty
         /// <summary>Duży plusk po wpadnięciu do wody (kolumna kropel i piana).</summary>
         public static void WaterSplash(Transform parent, Vector3 pos, Color water)
         {
+            if (Vfx.Splash(pos, Color.Lerp(water, Color.white, 0.75f), 1.6f)) { Mist(parent, pos, Color.Lerp(water, Color.white, 0.75f), 1.2f); return; }
             var foam = Color.Lerp(water, Color.white, 0.75f);
             var ps = Make("Plusk", parent, pos, Tex.Dot, false);
             var m = ps.main;
@@ -567,7 +572,7 @@ namespace PotatoParty
         /// <summary>
         /// Trafienie zrywem w wersji "pełnej": gwiazdka HDR (rozbłyska w bloomie), kierunkowy snop iskier
         /// wzdłuż ciosu, pionowy pierścień-fala ustawiony prostopadle do kierunku, kurz pod stopami
-        /// i krótkie kolorowe światło. Kamerę i hit-stop obsługuje GameFeel.
+        /// i krótkie kolorowe światło. Kamerę i hit-stop obsługuje Feel. To zapasowa wersja grafu VFX PP_Hit.
         /// </summary>
         public static void Impact(Transform parent, Vector3 pos, Color c, Vector3 dir, float power01)
         {
