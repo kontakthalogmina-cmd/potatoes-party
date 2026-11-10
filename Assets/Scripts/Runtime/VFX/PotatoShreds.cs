@@ -207,6 +207,14 @@ namespace PotatoParty
 
         // ---------------- siatki ----------------
 
+        static Mesh[] shared;
+        /// <summary>Siatka bryłki miąższu (0–3) do użycia poza cząsteczkami, np. zbieralne strzępki.</summary>
+        public static Mesh Chunk(int i)
+        {
+            if (shared == null) shared = new[] { ChunkMesh(11), ChunkMesh(12), ChunkMesh(13), ChunkMesh(14) };
+            return shared[Mathf.Abs(i) % shared.Length];
+        }
+
         /// <summary>Nieregularna bryłka: sześcian o losowo przesuniętych narożnikach, płaskie normalne (ostre krawędzie cięcia).</summary>
         static Mesh ChunkMesh(int seed)
         {

@@ -117,6 +117,7 @@ namespace PotatoParty
                 p.CanDash = true;
                 p.CanJump = true;
                 p.SpeedMultiplier = 1f;
+                p.KnockMultiplier = 1f;
                 ConfigurePlayer(p);
             }
         }
@@ -336,21 +337,14 @@ namespace PotatoParty
         {
             switch (type)
             {
-                case 0: return new HotPotatoGame();
-                case 1: return new GoldenPotatoesGame();
-                case 2: return new SumoGame();
-                case 3: return new CrackingIceGame();
-                case 4: return new ObstacleRaceGame();
-                case 5: return new SpinningBeamGame();
-                case 6: return new FallingPotsGame();
-                case 7: return new PotatoBallGame();
-                case 8: return new PaintersGame();
-                case 9: return new KingOfTheHillGame();
-                case 10: return new HarvesterTagGame();
-                default: return new MazeGame();
+                // 4 nowe gry na mapie "Ogród Babci" (stare 12 usunięte po playteście)
+                case 0: return new DeepFryGame();
+                case 1: return new TiltPanGame();
+                case 2: return new MoleGame();
+                default: return new TowerGame();
             }
         }
 
-        public const int Count = 12;
+        public const int Count = 4;
     }
 }

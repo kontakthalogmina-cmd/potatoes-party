@@ -47,6 +47,12 @@ namespace PotatoParty
         public float Grip = 1f;
         public float SpeedMultiplier = 1f;
         public float MoveSpeed = 7.5f;
+        /// <summary>Mnożnik odrzutu, który ten ziemniak dostaje (np. lekki ziemniak w Wielkim Smażeniu lata dalej).</summary>
+        public float KnockMultiplier = 1f;
+        /// <summary>Wciśnięta akcja (gracz albo bot) – minigry mogą podmienić znaczenie przycisku (np. atak Kreta).</summary>
+        public event System.Action<Potato> ActionPressed;
+        /// <summary>Lądowanie dowolnego ziemniaka: (kto, prędkość spadania m/s, punkt).</summary>
+        public static event System.Action<Potato, float, Vector3> Landed;
         public float DashSpeed = 21f;
         public float DashPower = 13f;
         public bool CanDash = true;
@@ -265,6 +271,9 @@ namespace PotatoParty
 
         void KnockCore(Vector3 impulse, float stun, bool environment)
         {
+            if (Body == null || Body.isKinematic) return; // np. ziemniak niesiony na wieży – odczepia go minigra
+            impulse.x *= KnockMultiplier;
+            impulse.z *= KnockMultiplier;
             if (Motor != null) Motor.ApplyKnock(impulse, stun);
             float horizontal = new Vector2(impulse.x, impulse.z).magnitude;
             float power = Mathf.Clamp01(impulse.magnitude / 16f);
@@ -302,6 +311,7 @@ namespace PotatoParty
 
         internal void OnLand(float fallSpeed, Vector3 point)
         {
+            if (Landed != null) Landed(this, fallSpeed, point);
             if (fallSpeed < 3f) return;
             if (Anim != null) Anim.OnLand(fallSpeed);
             SkinFx.OnLand(this, point + Vector3.up * 0.1f, fallSpeed);
@@ -331,7 +341,7 @@ namespace PotatoParty
                 Motor.Move = Slot.ReadMove();
                 Motor.JumpHeld = Slot.ReadJumpHeld();
                 if (Slot.ReadJump()) Motor.QueueJump();
-                if (Slot.ReadAction()) Motor.QueueAction();
+                if (Slot.ReadAction()) { Motor.QueueAction(); if (ActionPressed != null && !Frozen && !Eliminated) ActionPressed(this); }
             }
             if (Frozen || Eliminated) Motor.ClearInput();
             SkinFx.Tick(this, Time.deltaTime);
@@ -346,7 +356,7 @@ namespace PotatoParty
                 botThinkTimer = Random.Range(0.1f, 0.25f);
                 botCmd = BotBrain(this);
                 if (botCmd.Jump) { Motor.QueueJump(); botJumpHold = Random.Range(0.12f, 0.3f); }
-                if (botCmd.Action) Motor.QueueAction();
+                if (botCmd.Action) { Motor.QueueAction(); if (ActionPressed != null && !Frozen && !Eliminated) ActionPressed(this); }
             }
             Motor.JumpHeld = botJumpHold > 0f;
             if (BotBrain == null || botCmd.Idle) { Motor.Move = Vector2.zero; return; }

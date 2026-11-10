@@ -94,6 +94,7 @@ namespace PotatoParty
         /// <summary>Uderzenie z zewnątrz: nadpisuje prędkość poziomą, podbija pionową, przerywa zryw.</summary>
         public void ApplyKnock(Vector3 impulse, float stunTime)
         {
+            if (Body == null || Body.isKinematic) return;
             var v = Phys.GetVelocity(Body);
             v.x = impulse.x;
             v.z = impulse.z;
