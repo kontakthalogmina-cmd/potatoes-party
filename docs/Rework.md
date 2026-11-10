@@ -434,3 +434,9 @@ Po pierwszym teście wszystkie gałki przesunięte w stronę kina. Każdą możn
 | Feel | Hit stop zrywu / otoczenia | 55–110 / 30–70 ms | **80–160 / 50–100 ms** |
 | Feel | Knockout slow-mo | 0.25× | **0.15×** |
 | TimeDirector | MaxStopPerSecond | 0.22 s | **0.3 s** |
+
+## Zryw v3 – bez spowolnienia, ze strzępkami (2026-11-10, po playteście)
+
+- `Feel.DashHit`: **usunięty hit stop** (było 80–160 ms). Waga ciosu = `PotatoShreds.Burst` + impuls kamery + FOV punch + rumble + rozcięcie skórki (`PotatoSurface.Impact`).
+- `MotorTuning`: DashStartup 0.035 → **0** (wystrzał w tej samej klatce), DashActive 0.16 → **0.15**, DashRecovery 0.14 → **0.1** (sterowanie 60%), DashCooldown 0.85 → **0.7**; `Potato.DashSpeed` 17.5 → **21 m/s**.
+- `VFX/PotatoShreds.cs`: 3 trwałe ParticleSystem (miąższ 900, skórka 400, okruchy 700 cząstek), emisja ręczna `Emit(EmitParams)`, siatki proceduralne, kolizja ze światem (bounce 0.32/0.2/0.4, dampen 0.28/0.12/0.35), gravity ×1.7/1.25/1.4. Liczba kawałków: miąższ 10–26, skórka 4–12, okruchy 14–40 (power²). Stożek 55°, prędkość 3.5–10 m/s, w górę 2.5–6.5 m/s. `PotatoShreds.Amount` = globalny mnożnik.

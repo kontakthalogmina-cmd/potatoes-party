@@ -7,7 +7,7 @@ namespace PotatoParty
     /// "akord" kanałów, dzięki czemu 12 minigier czuje się jak jedna gra:
     /// <code>
     ///                 hit stop        time dilation      impuls (siła)      rumble L/H    kamera              obraz
-    /// DashHit         55–110 ms       –                  Hit 0.10–0.22      0.25/0.55     najazd 12%, FOV -2° CA+beczka
+    /// DashHit         – (zero!)       –                  Hit 0.10–0.22      0.25/0.55     najazd 12%, FOV -2° CA+beczka
     /// EnvironmentHit  30–70 ms        –                  Slam 0.08–0.25     0.45/0.25     FOV -1°            CA
     /// Land (ciężkie)  –               –                  Land 0.03–0.12     0.30/0.05     –                  –
     /// Explosion       80 ms           0.45× / 0.35 s     Explosion 0.3–0.6  0.9/0.5       najazd 8%          CA+flash
@@ -19,7 +19,6 @@ namespace PotatoParty
     public static class Feel
     {
         // ---------------- strojenie ----------------
-        public static float DashStopMin = 0.08f, DashStopMax = 0.16f;
         public static float EnvStopMin = 0.05f, EnvStopMax = 0.1f;
         public static float HitImpulseMin = 0.10f, HitImpulseMax = 0.22f;
         public static float KnockoutSlowScale = 0.15f;
@@ -32,7 +31,7 @@ namespace PotatoParty
             power01 = Mathf.Clamp01(power01);
             Vector3 contact = Vector3.Lerp(attacker.transform.position, victim.transform.position, 0.55f) + Vector3.up * 0.35f;
 
-            TimeDirector.HitStop(Mathf.Lerp(DashStopMin, DashStopMax, power01 * power01));
+            // ZERO zatrzymania czasu: zryw ma płynąć. Wagę ciosu niesie obraz (strzępki, wstrząs, FOV) i pad.
             Impulses.Fire(ImpulseKind.Hit, contact, dir, Mathf.Lerp(HitImpulseMin, HitImpulseMax, power01));
             Rumble.Pulse(attacker.Slot, 0.15f + 0.15f * power01, 0.45f + 0.3f * power01);
             Rumble.Pulse(victim.Slot, 0.35f + 0.3f * power01, 0.35f + 0.2f * power01);
@@ -44,6 +43,8 @@ namespace PotatoParty
             }
             PostFx.Punch(0.3f + 0.45f * power01);
             Vfx.Hit(victim.transform.parent, contact, dir, attacker.Color, power01);
+            PotatoShreds.Burst(victim, contact, dir, power01);
+            if (victim.Surface != null) victim.Surface.Impact(dir, 0.45f + 0.55f * power01); // rozcięcie skórki przy mocnym ciosie
         }
 
         /// <summary>Uderzenie z otoczenia (belka, wahadło, garnek, kula). Bez cząsteczek – ma je minigra.</summary>

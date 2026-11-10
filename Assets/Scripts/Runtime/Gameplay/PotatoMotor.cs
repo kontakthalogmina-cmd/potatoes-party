@@ -34,10 +34,10 @@ namespace PotatoParty
         public float KnockGravity = 26f;       // m/s² w locie po ciosie: dłuższy, czytelny łuk (balans minigier jak dotąd)
 
         [Header("Zryw (akcja)")]
-        public float DashStartup = 0.035f;     // s antycypacji (zgniecenie, zwolnienie do 35%)
-        public float DashActive = 0.16f;       // s pełnej prędkości – tylko wtedy trafienia liczą się jako cios
-        public float DashRecovery = 0.14f;     // s wyhamowania, sterowanie 40%
-        public float DashCooldown = 0.85f;     // s od początku zrywu
+        public float DashStartup = 0f;         // s antycypacji – 0 = wystrzał w tej samej klatce co przycisk
+        public float DashActive = 0.15f;       // s pełnej prędkości – tylko wtedy trafienia liczą się jako cios
+        public float DashRecovery = 0.1f;      // s wyhamowania, sterowanie 60%
+        public float DashCooldown = 0.7f;     // s od początku zrywu
         public float DashBuffer = 0.1f;
         public float AirDashLift = 1.5f;       // m/s minimalnej prędkości pionowej przy zrywie w powietrzu
 
@@ -151,6 +151,7 @@ namespace PotatoParty
                 cooldown = T.DashCooldown;
                 if (!Grounded) airDashUsed = true;
                 Owner.OnDashStart(DashDir);
+                if (T.DashStartup <= 0f) { Dash = DashPhase.Active; Owner.OnDashLaunch(DashDir); }
             }
 
             if (Dash != DashPhase.None)
@@ -172,7 +173,7 @@ namespace PotatoParty
                     case DashPhase.Recovery:
                         var steer = input * Owner.MoveSpeed * Owner.SpeedMultiplier;
                         float k = phaseTime / Mathf.Max(0.001f, T.DashRecovery);
-                        flat = Vector3.Lerp(DashDir * Owner.DashSpeed, Vector3.Lerp(DashDir * Owner.MoveSpeed, steer, 0.4f), Mathf.SmoothStep(0f, 1f, k));
+                        flat = Vector3.Lerp(DashDir * Owner.DashSpeed, Vector3.Lerp(DashDir * Owner.MoveSpeed, steer, 0.6f), Mathf.SmoothStep(0f, 1f, k));
                         if (phaseTime >= T.DashRecovery) { Dash = DashPhase.None; phaseTime = 0f; }
                         break;
                 }

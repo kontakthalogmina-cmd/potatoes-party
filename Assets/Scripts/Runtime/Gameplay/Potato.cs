@@ -47,7 +47,7 @@ namespace PotatoParty
         public float Grip = 1f;
         public float SpeedMultiplier = 1f;
         public float MoveSpeed = 7.5f;
-        public float DashSpeed = 17.5f;
+        public float DashSpeed = 21f;
         public float DashPower = 13f;
         public bool CanDash = true;
         public bool CanJump = true;

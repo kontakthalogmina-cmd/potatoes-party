@@ -108,6 +108,7 @@ namespace PotatoParty
             wanderTime.Clear();
             Camera.Targets.Clear();
             Vfx.ClearAll();
+            PotatoShreds.Clear();
             if (world != null) Destroy(world.gameObject);
             world = new GameObject("Swiat").transform;
             world.SetParent(transform, false);
