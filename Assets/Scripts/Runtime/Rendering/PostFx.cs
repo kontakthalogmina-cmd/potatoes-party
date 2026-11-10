@@ -28,6 +28,8 @@ namespace PotatoParty
         public static float MotionBlurPerSpeed = 0.018f; // intensywność na m/s ruchu kamery
         public static float MotionBlurMax = 0.32f;
         public static float BaseExposure = -0.35f;
+        /// <summary>Jeśli ustawiony – ostrość trzyma się tego obiektu (menu: bohater na pierwszym planie).</summary>
+        public static Transform FocusTarget;
         /// <summary>Filmowy nastrój: przesunięcia nakładane na gradację każdej mapy (0 = stary jasny wygląd).</summary>
         public static float MoodExposure = -0.7f, MoodContrast = 16f, MoodSaturation = 4f, VignetteBase = 0.32f;
 
@@ -222,7 +224,8 @@ namespace PotatoParty
             if (cam != null)
             {
                 Vector3 cp = cam.transform.position, fwd = cam.transform.forward;
-                float target = Mathf.Max(1f, Vector3.Dot(rig.FocusPoint - cp, fwd));
+                Vector3 fp = FocusTarget != null ? FocusTarget.position : rig.FocusPoint;
+                float target = Mathf.Max(1f, Vector3.Dot(fp - cp, fwd));
                 focus = Mathf.Lerp(focus, target, 1f - Mathf.Exp(-dt * 8f));
                 dof.focusDistance.Override(focus);
 

@@ -458,3 +458,9 @@ Po pierwszym teście wszystkie gałki przesunięte w stronę kina. Każdą możn
 | Ziemniak | bryła | sfera Unity | **PotatoMesh**: 56×36, guzy 0.075+0.022, asymetria 0.09, wygięcie 0.06, 6–9 oczek (głęb. 0.04, r 0.11) |
 | Ziemniak | kolor domyślnej skórki | kolor gracza | **płowy brąz (0.78, 0.6, 0.38) + 22% koloru gracza** |
 | Ziemniak | shader ciała | – | Speckle ≥ 0.85, Lenticel 0.75, Net 0.4, Bump 0.065; kurz nigdy < 0.22 |
+
+## Menu główne v2 (2026-11-10)
+
+- **Scena 3D** (`UI/MenuDirector.cs`): plac z garderobą budowany raz dla menu i lobby (`GameManager.menuStage`). 6 ziemniaków na ringu `BrawlCenter (0,0,−6)`, r 3.2 m, mózg `Brawl` (cel co 1.8–3.6 s, zryw z 1.6–3 m przy celności 0.8). 2 reflektory Spot (ciepły #FF9E47, fiolet #8C66FF), 14±4, kąt 34°/18°, ósemki nad ringiem, co 7 s łapią bohatera. DoF: `PostFx.FocusTarget` = bohater (105 mm, f1.4).
+- **Ujęcia Cinemachine**: 3 `CinemachineCamera` (Tytuł FOV 30, Graj FOV 34, Ustawienia FOV 40) + `ShotDrift` (dolly 14 s, "z ręki" 0.04 m / 0.35°) + `CinemachineImpulseListener` (gain 0.6). Przełączanie = aktywacja ostatniej kamery; blend EaseInOut 1.25 s. Menu → lobby: `Release()` oddaje kadr kamerze gry blendem, bez przebudowy świata.
+- **Juicy UI** (`UI/Juice.cs`): `JuicyButton` (sprężyny skali 7 Hz ζ 0.32, hover 1.10, press 0.90/1.06, kick przy kliknięciu, obrót ±6°, połysk 0.38 s, dźwięk Tick w gamie pentatonicznej, 6 iskier przy hover / 18 strzępków + pierścień przy kliknięciu), `UISparks` (pula 160 obrazków, grawitacja 1500 px/s²), `UIStagger` (kaskada 60 ms, ease-out-back 2.2), `BounceTitle` (litery na sprężynach 4.2 Hz, klik podrzuca), `Ease`.

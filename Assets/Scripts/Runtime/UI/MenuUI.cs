@@ -146,32 +146,71 @@ namespace PotatoParty
         //  Menu główne
         // =====================================================================
 
+        UIStagger mainStagger;
+
+        /// <summary>
+        /// Menu główne: lewa kolumna na ciemnym gradiencie (czytelność nad żywą sceną 3D),
+        /// tytuł z literami na sprężynach, przyciski wjeżdżające kaskadą i "soczyste" (<see cref="JuicyButton"/>).
+        /// Scena za menu i najazdy kamery – <see cref="MenuDirector"/>.
+        /// </summary>
         void BuildMain()
         {
             var rt = UIKit.Rect("Menu glowne", root);
-            UIKit.Stretch(rt, new Vector2(0, 0), new Vector2(0.42f, 1), new Vector2(80, 60), new Vector2(0, -60));
+            UIKit.Fill(rt);
             main = rt.gameObject;
 
-            var titleBox = UIKit.Rect("Tytul", rt);
-            UIKit.Stretch(titleBox, new Vector2(0, 0.66f), new Vector2(1, 1), Vector2.zero, Vector2.zero);
-            titleBox.gameObject.AddComponent<UIWobble>();
-            var t1 = UIKit.Label(titleBox, "POTATOES", 132, UIKit.Yellow, TextAnchor.MiddleCenter, FontStyle.Bold);
-            UIKit.Stretch(t1.rectTransform, new Vector2(0, 0.45f), new Vector2(1, 1), Vector2.zero, Vector2.zero);
-            UIKit.Outline(t1, UIKit.Dark, 6f);
-            UIKit.Shadow(t1, 9f, 0.35f);
-            var t2 = UIKit.Label(titleBox, "PARTY!", 120, UIKit.Orange, TextAnchor.MiddleCenter, FontStyle.Bold);
-            UIKit.Stretch(t2.rectTransform, new Vector2(0, 0.0f), new Vector2(1, 0.55f), Vector2.zero, Vector2.zero);
-            UIKit.Outline(t2, UIKit.Dark, 6f);
-            UIKit.Shadow(t2, 9f, 0.35f);
+            // gradient od lewej: ciemny fiolet → przezroczysty (scena 3D zostaje widoczna po prawej)
+            var grad = UIKit.Rect("Gradient", rt);
+            UIKit.Stretch(grad, new Vector2(0, 0), new Vector2(0.62f, 1), Vector2.zero, Vector2.zero);
+            var gi = grad.gameObject.AddComponent<Image>();
+            gi.sprite = GradientSprite();
+            gi.color = new Color(0.07f, 0.05f, 0.16f, 0.82f);
+            gi.raycastTarget = false;
 
-            var stack = UIKit.Rect("Przyciski", rt);
-            UIKit.Stretch(stack, new Vector2(0.12f, 0.1f), new Vector2(0.88f, 0.58f), Vector2.zero, Vector2.zero);
+            var col = UIKit.Rect("Kolumna", rt);
+            UIKit.Stretch(col, new Vector2(0, 0), new Vector2(0.42f, 1), new Vector2(80, 60), new Vector2(0, -60));
+
+            var titleBox = UIKit.Rect("Tytul", col);
+            UIKit.Stretch(titleBox, new Vector2(0, 0.64f), new Vector2(1, 1), Vector2.zero, Vector2.zero);
+            var l1 = UIKit.Rect("Linia 1", titleBox);
+            UIKit.Stretch(l1, new Vector2(0, 0.5f), new Vector2(1, 1), Vector2.zero, Vector2.zero);
+            BounceTitle.Build(l1, "POTATOES", 124, UIKit.Yellow, UIKit.Dark, 1f);
+            var l2 = UIKit.Rect("Linia 2", titleBox);
+            UIKit.Stretch(l2, new Vector2(0, 0f), new Vector2(1, 0.5f), Vector2.zero, Vector2.zero);
+            BounceTitle.Build(l2, "PARTY!", 116, UIKit.Orange, UIKit.Dark, 1f);
+
+            var stack = UIKit.Rect("Przyciski", col);
+            UIKit.Stretch(stack, new Vector2(0.1f, 0.08f), new Vector2(0.9f, 0.58f), Vector2.zero, Vector2.zero);
             UIKit.VStack(stack, 22);
-            mainFirst = RowButton(stack, "Dołącz do gry", UIKit.Teal, () => gm.OpenJoin(), 100, 44);
-            RowButton(stack, "Stwórz grę", UIKit.Orange, () => gm.CreateLobby(), 100, 44);
-            RowButton(stack, "Ustawienia", UIKit.Purple, () => gm.OpenSettings(), 100, 44);
-            RowButton(stack, "Wyjdź z gry", UIKit.Red, () => gm.QuitGame(), 100, 44);
+            mainStagger = rt.gameObject.AddComponent<UIStagger>();
+            mainStagger.Offset = -760f;
+            mainFirst = RowButton(stack, "Stwórz grę", UIKit.Orange, () => gm.CreateLobby(), 104, 46);
+            mainStagger.Register((RectTransform)mainFirst.transform);
+            mainStagger.Register((RectTransform)RowButton(stack, "Dołącz do gry", UIKit.Teal, () => gm.OpenJoin(), 104, 46).transform);
+            mainStagger.Register((RectTransform)RowButton(stack, "Ustawienia", UIKit.Purple, () => gm.OpenSettings(), 104, 46).transform);
+            mainStagger.Register((RectTransform)RowButton(stack, "Wyjdź z gry", UIKit.Red, () => gm.QuitGame(), 104, 46).transform);
 
+            var hint = UIKit.Label(col, "Kliknij tytuł!", 24, new Color(1f, 1f, 1f, 0.45f), TextAnchor.LowerCenter, FontStyle.Bold);
+            UIKit.Stretch(hint.rectTransform, new Vector2(0, 0), new Vector2(1, 0.06f), Vector2.zero, Vector2.zero);
+            hint.raycastTarget = false;
+        }
+
+        static Sprite gradientSprite;
+        static Sprite GradientSprite()
+        {
+            if (gradientSprite != null) return gradientSprite;
+            const int w = 256;
+            var tex = new Texture2D(w, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, name = "Gradient menu" };
+            for (int x = 0; x < w; x++)
+            {
+                float k = x / (float)(w - 1);
+                // pełna krycie do 45%, potem miękkie zejście (smoothstep) do zera
+                float a = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 1f, k));
+                tex.SetPixel(x, 0, new Color(1f, 1f, 1f, a));
+            }
+            tex.Apply();
+            gradientSprite = Sprite.Create(tex, new Rect(0, 0, w, 1), new Vector2(0.5f, 0.5f));
+            return gradientSprite;
         }
 
         public void ShowMain()

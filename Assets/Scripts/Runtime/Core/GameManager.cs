@@ -82,6 +82,7 @@ namespace PotatoParty
             RenderSettings.sun = Sun;
             Lighting.Setup(Camera.Cam, Sun);
             Fx.Camera = Camera;
+            MenuDirector.Ensure(transform);
 
             UIKit.EnsureEventSystem();
             Debug.Log("[Potatoes Party] Czcionki: " + UIKit.TitleFont.name + " / " + UIKit.Font.name);
@@ -109,6 +110,8 @@ namespace PotatoParty
             Camera.Targets.Clear();
             Vfx.ClearAll();
             PotatoShreds.Clear();
+            menuStage = false;
+            if (MenuDirector.Instance != null) MenuDirector.Instance.Release(true);
             if (world != null) Destroy(world.gameObject);
             world = new GameObject("Swiat").transform;
             world.SetParent(transform, false);
@@ -161,45 +164,67 @@ namespace PotatoParty
         //  Menu
         // =====================================================================
 
+        /// <summary>Świat menu i lobby (plac z garderobą) już stoi – przejścia menu ↔ lobby bez przebudowy, samym najazdem kamery.</summary>
+        bool menuStage;
+
         public void GoToMainMenu()
         {
             StopMatch();
             if (!JoinedAsGuest && !string.IsNullOrEmpty(Settings.LobbyCode)) Lobbies.Unpublish(Settings.LobbyCode);
             Slots.Clear();
+            bool reuse = menuStage && world != null;
             State = GameState.MainMenu;
-            BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius);
-            Showcase(true);
-            Camera.ScreenOffset = new Vector3(-5.5f, 0, 0);
-            Camera.MinDistance = 15f;
-            Camera.FollowArenaPull = 1f;
-            Camera.MinSpread = 16f;
-            for (int i = 0; i < 4; i++)
+            if (reuse)
             {
-                var slot = new PlayerSlot { Index = i, Name = PlayerColors.BotNames[i], Color = PlayerColors.All[i], Kind = ControlKind.Bot, Skin = (i * 2 + Random.Range(0, 2)) % PotatoSkins.Count };
-                var p = Spawn(slot, new Vector3(-3f + i * 2f, 1f, 0));
+                foreach (var p in Potatoes) if (p != null) Destroy(p.gameObject);
+                Potatoes.Clear();
+                Camera.Targets.Clear();
+            }
+            else
+            {
+                BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius, true);
+                menuStage = true;
+            }
+            Showcase(true);
+            Camera.ScreenOffset = Vector3.zero;
+            Camera.MinDistance = 13f;
+            Camera.FollowArenaPull = 0.5f;
+            Camera.MinSpread = 12f;
+            // 6 ziemniaków na "ringu" przed kamerą – przepychają się zrywami (mózg: MenuDirector.Brawl)
+            for (int i = 0; i < 6; i++)
+            {
+                var slot = new PlayerSlot { Index = i, Name = PlayerColors.BotNames[i % PlayerColors.BotNames.Length], Color = PlayerColors.All[i % PlayerColors.All.Length], Kind = ControlKind.Bot, Skin = (i * 2 + Random.Range(0, 2)) % PotatoSkins.Count };
+                float a = i / 6f * Mathf.PI * 2f;
+                var p = Spawn(slot, MenuDirector.BrawlCenter + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * 2f + Vector3.up);
                 p.Frozen = false;
-                p.BotBrain = IdleWander;
             }
             Camera.SnapNow();
             Hud.Hide();
             AudioManager.Instance.PlayMusic(Synth.MenuSong);
+            MenuDirector.Instance.Enter(Potatoes, !reuse);
             Menu.ShowMain();
         }
 
         public void OpenSettings()
         {
+            if (MenuDirector.Instance != null && MenuDirector.Instance.Active) MenuDirector.Instance.Shot(MenuShot.Settings);
             Menu.ShowSettings();
         }
 
         public void CloseSettings()
         {
             if (Paused) Menu.ShowPause();
-            else Menu.ShowMain();
+            else
+            {
+                if (MenuDirector.Instance != null && MenuDirector.Instance.Active) MenuDirector.Instance.Shot(MenuShot.Title);
+                Menu.ShowMain();
+            }
         }
 
         public void OpenJoin()
         {
             State = GameState.Join;
+            if (MenuDirector.Instance != null && MenuDirector.Instance.Active) MenuDirector.Instance.Shot(MenuShot.Play);
             Menu.ShowJoin();
         }
 
@@ -240,7 +265,13 @@ namespace PotatoParty
         {
             StopMatch();
             State = GameState.Lobby;
-            BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius, true);
+            if (!(menuStage && world != null))
+            {
+                BuildStage(MapTheme.Get(MapId.Farm), MapBuilder.HubRadius, true);
+                menuStage = true;
+            }
+            // z menu: ten sam plac, kamera gry przejmuje kadr płynnym najazdem (bez ładowania)
+            if (MenuDirector.Instance != null) MenuDirector.Instance.Release();
             Showcase(true);
             Camera.ScreenOffset = Vector3.zero;
             Camera.MinDistance = 13f;

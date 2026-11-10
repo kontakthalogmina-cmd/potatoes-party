@@ -116,5 +116,26 @@ namespace PotatoParty
             Instance.sfx.pitch = Instance.warp * (1f + Random.Range(-pitchJitter, pitchJitter));
             Instance.sfx.PlayOneShot(c, volume);
         }
+
+        /// <summary>Dźwięk UI o zadanej wysokości (np. rosnąca gama przy najeżdżaniu na kolejne przyciski).
+        /// Osobne źródło, żeby wysokość nie "przeciekała" na efekty rozgrywki.</summary>
+        public static void PlayPitched(Sfx s, float volume, float pitch)
+        {
+            if (Instance == null || Instance.clips == null) return;
+            AudioClip c;
+            if (!Instance.clips.TryGetValue(s, out c)) return;
+            if (Instance.ui == null)
+            {
+                Instance.ui = Instance.gameObject.AddComponent<AudioSource>();
+                Instance.ui.playOnAwake = false;
+                Instance.ui.spatialBlend = 0f;
+                Instance.ui.outputAudioMixerGroup = Instance.sfx.outputAudioMixerGroup;
+            }
+            Instance.ui.volume = Instance.sfx.volume;
+            Instance.ui.pitch = pitch;
+            Instance.ui.PlayOneShot(c, volume);
+        }
+
+        AudioSource ui;
     }
 }
