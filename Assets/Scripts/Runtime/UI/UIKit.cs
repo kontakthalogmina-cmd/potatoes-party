@@ -233,7 +233,7 @@ namespace PotatoParty
             var ls = label.gameObject.AddComponent<Shadow>();
             ls.effectColor = new Color(0, 0, 0, 0.22f);
             ls.effectDistance = new Vector2(0, -3);
-            img.gameObject.AddComponent<UIHover>();
+            img.gameObject.AddComponent<JuicyButton>().Accent = c;
             return btn;
         }
 

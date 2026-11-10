@@ -52,6 +52,14 @@ namespace PotatoParty
             return false;
         }
 
+        /// <summary>Czy przycisk skoku jest wciąż trzymany (zmienna wysokość skoku).</summary>
+        public bool ReadJumpHeld()
+        {
+            if (Kind == ControlKind.Keyboard) return InputBridge.KeyboardJumpHeld(DeviceId);
+            if (Kind == ControlKind.Gamepad) return InputBridge.GamepadJumpHeld(DeviceId);
+            return false;
+        }
+
         public bool ReadAction()
         {
             if (Kind == ControlKind.Keyboard) return InputBridge.KeyboardActionDown(DeviceId);
@@ -154,6 +162,7 @@ namespace PotatoParty
             if (!Application.isEditor) Screen.fullScreen = Fullscreen;
             if (Quality >= 0 && Quality < QualitySettings.names.Length && Quality != QualitySettings.GetQualityLevel())
                 QualitySettings.SetQualityLevel(Quality, true);
+            PostFx.ApplyQuality(QualitySettings.GetQualityLevel());
             if (AudioManager.Instance != null) AudioManager.Instance.ApplyVolumes();
         }
     }

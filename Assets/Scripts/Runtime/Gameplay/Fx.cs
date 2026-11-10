@@ -21,7 +21,7 @@ namespace PotatoParty
         /// <summary>Kolor kurzu dla bieżącej mapy (piasek, śnieg, sadza...). Ustawiany przy budowie mapy.</summary>
         public static Color DustColor = new Color(0.93f, 0.9f, 0.84f, 0.8f);
         /// <summary>Kamera do wstrząsów (ustawiana przez GameManager).</summary>
-        public static SharedCamera Camera;
+        public static CinematicCamera Camera;
 
         // =====================================================================
         //  Tekstury
@@ -141,9 +141,42 @@ namespace PotatoParty
         //  Budowa systemu
         // =====================================================================
 
-        /// <summary>Pusty system cząsteczek z rozsądnymi ustawieniami; po zakończeniu sam się usuwa.</summary>
+        // ---------------- pula jednorazowych efektów ----------------
+        // Wcześniej każdy efekt = new GameObject + AddComponent<ParticleSystem> + Destroy po ~1 s.
+        // Wybuch to 6 systemów i światło: kilkadziesiąt alokacji natywnych i zarządzanych, skoki GC
+        // dokładnie w najbardziej "soczystym" momencie. Teraz system po zakończeniu się wyłącza
+        // (StopAction.Disable) i czeka w puli pod swoją nazwą; przepis ustawia moduły od nowa.
+        const int PoolCapPerRecipe = 24;
+        static readonly Dictionary<string, List<ParticleSystem>> pool = new Dictionary<string, List<ParticleSystem>>();
+
+        static ParticleSystem Rent(string name, Transform parent, Vector3 pos)
+        {
+            List<ParticleSystem> list;
+            if (!pool.TryGetValue(name, out list)) return null;
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                var ps = list[i];
+                if (ps == null) { list.RemoveAt(i); continue; } // rodzic (mapa) zniszczony
+                if (ps.gameObject.activeSelf) continue;          // jeszcze gra
+                var tr = ps.transform;
+                tr.SetParent(parent, false);
+                tr.SetPositionAndRotation(pos, Quaternion.identity);
+                tr.localScale = Vector3.one;
+                ps.gameObject.SetActive(true);
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                return ps;
+            }
+            return null;
+        }
+
+        /// <summary>Pusty system cząsteczek z rozsądnymi ustawieniami; jednorazowe wracają po zakończeniu do puli.</summary>
         public static ParticleSystem Make(string name, Transform parent, Vector3 pos, Tex tex, bool additive, bool loop = false)
         {
+            if (!loop)
+            {
+                var pooled = Rent(name, parent, pos);
+                if (pooled != null) return pooled;
+            }
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
             go.transform.position = pos;
@@ -156,7 +189,17 @@ namespace PotatoParty
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             main.scalingMode = ParticleSystemScalingMode.Hierarchy;
             main.maxParticles = 400;
-            if (!loop) main.stopAction = ParticleSystemStopAction.Destroy;
+            if (!loop)
+            {
+                List<ParticleSystem> list;
+                if (!pool.TryGetValue(name, out list)) { list = new List<ParticleSystem>(8); pool[name] = list; }
+                if (list.Count < PoolCapPerRecipe)
+                {
+                    list.Add(ps);
+                    main.stopAction = ParticleSystemStopAction.Disable;
+                }
+                else main.stopAction = ParticleSystemStopAction.Destroy; // nadmiar w szczycie: jak dawniej
+            }
             var emission = ps.emission;
             emission.enabled = loop;
             emission.rateOverTime = 0f;
@@ -171,26 +214,54 @@ namespace PotatoParty
             return ps;
         }
 
+        // Krzywe i gradienty z pamięci podręcznej (klucz = hash wartości): przepisy wołają je przy każdym
+        // efekcie, a AnimationCurve/Gradient to obiekty na stercie. Zostaje tylko tablica params (kilkadziesiąt B).
+        static readonly Dictionary<int, AnimationCurve> curveCache = new Dictionary<int, AnimationCurve>();
+        static readonly Dictionary<int, Gradient> gradientCache = new Dictionary<int, Gradient>();
+
+        static int Hash(int h, float v) { unchecked { return h * 31 + v.GetHashCode(); } }
+        static int Hash(int h, Color c) { return Hash(Hash(Hash(Hash(h, c.r), c.g), c.b), c.a); }
+
         static ParticleSystem.MinMaxCurve Curve(params float[] kv)
         {
-            var keys = new Keyframe[kv.Length / 2];
-            for (int i = 0; i < keys.Length; i++) keys[i] = new Keyframe(kv[i * 2], kv[i * 2 + 1]);
-            return new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(keys));
+            int h = 17;
+            for (int i = 0; i < kv.Length; i++) h = Hash(h, kv[i]);
+            AnimationCurve curve;
+            if (!curveCache.TryGetValue(h, out curve))
+            {
+                var keys = new Keyframe[kv.Length / 2];
+                for (int i = 0; i < keys.Length; i++) keys[i] = new Keyframe(kv[i * 2], kv[i * 2 + 1]);
+                curve = new AnimationCurve(keys);
+                curveCache[h] = curve;
+            }
+            return new ParticleSystem.MinMaxCurve(1f, curve);
         }
 
         static ParticleSystem.MinMaxGradient Fade(Color a, Color b, float fadeIn = 0.05f)
         {
-            var g = new Gradient();
-            g.SetKeys(new[] { new GradientColorKey(a, 0f), new GradientColorKey(b, 1f) },
-                new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, fadeIn), new GradientAlphaKey(0.8f, 0.6f), new GradientAlphaKey(0f, 1f) });
+            int h = Hash(Hash(Hash(101, a), b), fadeIn);
+            Gradient g;
+            if (!gradientCache.TryGetValue(h, out g))
+            {
+                g = new Gradient();
+                g.SetKeys(new[] { new GradientColorKey(a, 0f), new GradientColorKey(b, 1f) },
+                    new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, fadeIn), new GradientAlphaKey(0.8f, 0.6f), new GradientAlphaKey(0f, 1f) });
+                gradientCache[h] = g;
+            }
             return new ParticleSystem.MinMaxGradient(g);
         }
 
         static ParticleSystem.MinMaxGradient Fade3(Color a, Color b, Color c)
         {
-            var g = new Gradient();
-            g.SetKeys(new[] { new GradientColorKey(a, 0f), new GradientColorKey(b, 0.35f), new GradientColorKey(c, 1f) },
-                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.9f, 0.4f), new GradientAlphaKey(0f, 1f) });
+            int h = Hash(Hash(Hash(303, a), b), c);
+            Gradient g;
+            if (!gradientCache.TryGetValue(h, out g))
+            {
+                g = new Gradient();
+                g.SetKeys(new[] { new GradientColorKey(a, 0f), new GradientColorKey(b, 0.35f), new GradientColorKey(c, 1f) },
+                    new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.9f, 0.4f), new GradientAlphaKey(0f, 1f) });
+                gradientCache[h] = g;
+            }
             return new ParticleSystem.MinMaxGradient(g);
         }
 
@@ -221,23 +292,43 @@ namespace PotatoParty
         /// <summary>Wstrząs kamery (ograniczony, żeby nie męczył przy wielu wybuchach naraz).</summary>
         public static void Shake(float amount)
         {
-            if (Camera != null) Camera.Shake(Mathf.Min(amount, 0.6f));
+            Feel.Shake(Mathf.Min(amount, 0.6f));
         }
 
         /// <summary>Krótki błysk światła (wybuch, uderzenie pioruna, zryw).</summary>
+        static readonly List<LightFade> lightPool = new List<LightFade>();
+        public static float MaxFlashIntensity = 6f;
+
         public static void FlashLight(Transform parent, Vector3 pos, Color c, float range, float intensity, float time)
         {
-            var go = new GameObject("Blysk");
-            go.transform.SetParent(parent, false);
-            go.transform.position = pos;
-            var l = go.AddComponent<Light>();
-            l.type = LightType.Point;
+            LightFade f = null;
+            for (int i = lightPool.Count - 1; i >= 0; i--)
+            {
+                var cand = lightPool[i];
+                if (cand == null) { lightPool.RemoveAt(i); continue; }
+                if (!cand.gameObject.activeSelf) { f = cand; break; }
+            }
+            if (f == null)
+            {
+                var go = new GameObject("Blysk");
+                var nl = go.AddComponent<Light>();
+                nl.type = LightType.Point;
+                nl.shadows = LightShadows.None;
+                f = go.AddComponent<LightFade>();
+                f.Pooled = lightPool.Count < 12;
+                if (f.Pooled) lightPool.Add(f);
+                go.SetActive(false);
+            }
+            var tr = f.transform;
+            tr.SetParent(parent, false);
+            tr.position = pos;
+            var l = f.GetComponent<Light>();
             l.color = c;
             l.range = range;
-            l.intensity = intensity;
-            l.shadows = LightShadows.None;
-            var f = go.AddComponent<LightFade>();
+            // błyski 25–30 przy ziemniaku 0.5 m od źródła dawały piksele HDR rzędu tysięcy → bloom na cały ekran
+            l.intensity = Mathf.Min(intensity, MaxFlashIntensity);
             f.Life = time;
+            f.gameObject.SetActive(true); // OnEnable startuje zanikanie od bieżącej jasności
         }
 
         // =====================================================================
@@ -247,6 +338,9 @@ namespace PotatoParty
         /// <summary>Wybuch: błysk, kula ognia, iskry, dym, fala uderzeniowa, światło i wstrząs.</summary>
         public static void Explosion(Transform parent, Vector3 pos, float size)
         {
+            // pełne sprzężenie (hit stop, slow-mo, impuls, wibracje) + VFX Graph, jeśli jest w projekcie
+            Feel.Explosion(pos, Mathf.Clamp01(size / 1.6f));
+            if (Vfx.Explosion(pos, size)) { FlashLight(parent, pos, new Color(1f, 0.6f, 0.25f), 6f * size, 14f, 0.22f); return; }
             float s = Mathf.Max(0.3f, size);
 
             var flash = Make("Wybuch blysk", parent, pos, Tex.Dot, true);
@@ -371,6 +465,7 @@ namespace PotatoParty
         /// <summary>Rozbryzg cieczy (woda, farba, błoto, zupa): kropelki z grawitacją + plama-pierścień.</summary>
         public static void Splash(Transform parent, Vector3 pos, Color c, float size = 1f, int count = 24)
         {
+            if (Vfx.Splash(pos, c, size)) return;
             var ps = Make("Rozbryzg", parent, pos, Tex.Dot, false);
             var m = ps.main;
             m.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.9f);
@@ -391,6 +486,7 @@ namespace PotatoParty
         /// <summary>Duży plusk po wpadnięciu do wody (kolumna kropel i piana).</summary>
         public static void WaterSplash(Transform parent, Vector3 pos, Color water)
         {
+            if (Vfx.Splash(pos, Color.Lerp(water, Color.white, 0.75f), 1.6f)) { Mist(parent, pos, Color.Lerp(water, Color.white, 0.75f), 1.2f); return; }
             var foam = Color.Lerp(water, Color.white, 0.75f);
             var ps = Make("Plusk", parent, pos, Tex.Dot, false);
             var m = ps.main;
@@ -473,6 +569,70 @@ namespace PotatoParty
             Burst(star, 1);
             Sparks(parent, pos, Color.Lerp(c, Color.white, 0.4f), 14, 7f, 0.4f);
             Shake(0.12f);
+        }
+
+        /// <summary>
+        /// Trafienie zrywem w wersji "pełnej": gwiazdka HDR (rozbłyska w bloomie), kierunkowy snop iskier
+        /// wzdłuż ciosu, pionowy pierścień-fala ustawiony prostopadle do kierunku, kurz pod stopami
+        /// i krótkie kolorowe światło. Kamerę i hit-stop obsługuje Feel. To zapasowa wersja grafu VFX PP_Hit.
+        /// </summary>
+        public static void Impact(Transform parent, Vector3 pos, Color c, Vector3 dir, float power01)
+        {
+            float p = Mathf.Clamp01(power01);
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 1e-4f) dir = Vector3.forward;
+            dir.Normalize();
+
+            var star = Make("Uderzenie HDR", parent, pos, Tex.Star, true);
+            var m = star.main;
+            m.startLifetime = 0.16f + 0.06f * p;
+            m.startSpeed = 0f;
+            m.startSize = 1.6f + 1.2f * p;
+            m.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI);
+            // > 1 w HDR: przekracza próg bloomu (0.95), więc gwiazdka "pali" obraz przez 2–3 klatki
+            m.startColor = new Color(2.4f, 2.2f, 1.9f, 1f);
+            var sol = star.sizeOverLifetime; sol.enabled = true; sol.size = Curve(0, 0.35f, 0.25f, 1f, 1, 0.15f);
+            Burst(star, 1);
+
+            // snop iskier: stożek 28° w kierunku ciosu, kolor napastnika rozjaśniony do bieli
+            var sparks = Make("Iskry kierunkowe", parent, pos, Tex.Dot, true);
+            m = sparks.main;
+            m.startLifetime = new ParticleSystem.MinMaxCurve(0.18f, 0.42f);
+            m.startSpeed = new ParticleSystem.MinMaxCurve(6f + 4f * p, 13f + 7f * p);
+            m.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.12f);
+            var sc = Color.Lerp(c, Color.white, 0.45f);
+            m.startColor = new Color(sc.r * 3f, sc.g * 3f, sc.b * 3f, 1f);
+            m.gravityModifier = 0.9f;
+            var shape = sparks.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 28f;
+            shape.radius = 0.08f;
+            sparks.transform.rotation = Quaternion.LookRotation(dir + Vector3.up * 0.25f);
+            var lv = sparks.limitVelocityOverLifetime; lv.enabled = true; lv.drag = 4f;
+            sol = sparks.sizeOverLifetime; sol.enabled = true; sol.size = Curve(0, 1, 1, 0);
+            var sr = sparks.GetComponent<ParticleSystemRenderer>();
+            sr.renderMode = ParticleSystemRenderMode.Stretch;
+            sr.velocityScale = 0.045f;
+            sr.lengthScale = 2.2f;
+            Burst(sparks, Mathf.RoundToInt(16 + 18 * p));
+
+            // pionowa fala: płaszczyzna prostopadła do ciosu (Local alignment + obrót systemu)
+            var ring = Make("Uderzenie fala", parent, pos, Tex.Ring, true);
+            m = ring.main;
+            m.startLifetime = 0.2f;
+            m.startSpeed = 0f;
+            m.startSize = 1.4f + 1.2f * p;
+            m.startColor = new Color(sc.r * 1.8f, sc.g * 1.8f, sc.b * 1.8f, 0.9f);
+            ring.transform.rotation = Quaternion.LookRotation(dir);
+            var rs = ring.sizeOverLifetime; rs.enabled = true; rs.size = Curve(0, 0.2f, 0.5f, 0.85f, 1, 1f);
+            var rc = ring.colorOverLifetime; rc.enabled = true; rc.color = Fade3(Color.white, Color.white, Color.white);
+            var rr = ring.GetComponent<ParticleSystemRenderer>();
+            rr.alignment = ParticleSystemRenderSpace.Local;
+            Burst(ring, 1);
+
+            Dust(parent, new Vector3(pos.x, pos.y - 0.85f, pos.z), 0.5f + 0.4f * p, 4 + Mathf.RoundToInt(4 * p));
+            FlashLight(parent, pos, Color.Lerp(c, Color.white, 0.5f), 3.5f + 2f * p, 6f + 8f * p, 0.14f);
         }
 
         /// <summary>Grudy błota rozpryśnięte z punktu (fałszywe złoto, kałuża, kombajn).</summary>
@@ -637,21 +797,28 @@ namespace PotatoParty
     public class LightFade : MonoBehaviour
     {
         public float Life = 0.4f;
+        /// <summary>true = po zgaśnięciu wraca do puli (wyłącza się), false = usuwa się.</summary>
+        public bool Pooled;
         Light l;
         float start, t;
 
-        void Start()
+        void OnEnable()
         {
-            l = GetComponent<Light>();
+            if (l == null) l = GetComponent<Light>();
             start = l != null ? l.intensity : 0f;
+            t = 0f;
         }
 
         void Update()
         {
             t += Time.deltaTime;
-            float k = Mathf.Clamp01(t / Life);
+            float k = Mathf.Clamp01(t / Mathf.Max(0.01f, Life));
             if (l != null) l.intensity = start * (1f - k) * (1f - k);
-            if (k >= 1f) Destroy(gameObject);
+            if (k >= 1f)
+            {
+                if (Pooled) gameObject.SetActive(false);
+                else Destroy(gameObject);
+            }
         }
     }
 }

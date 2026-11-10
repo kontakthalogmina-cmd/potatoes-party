@@ -1,7 +1,11 @@
 # Potatoes Party 🥔🎉
 
 Wesoła gra imprezowa dla **2–6 graczy** na jednym ekranie (Unity 6, URP).
-Ziemniaczki rywalizują w minigrach, a wspólna kamera sama się przesuwa i oddala tak, żeby było widać każdego gracza i otoczenie.
+Ziemniaczki rywalizują w minigrach, a filmowa kamera (Cinemachine) trzyma się blisko akcji, najeżdża na trafienia i reaguje na prędkość.
+
+> **Rework „Cinematic Realism + Ultimate Responsiveness”** – nowa kamera, światło, post-processing, shader skóry
+> z SSS i reakcją na brud, wodę i uszkodzenia, sterowanie od zera i pełny game feel (hit stop, time dilation,
+> impulsy, wibracje, squash & stretch, VFX Graph). Wszystkie wartości do Inspektora: **[docs/Rework.md](docs/Rework.md)**.
 
 ## Jak uruchomić
 
@@ -10,7 +14,9 @@ Ziemniaczki rywalizują w minigrach, a wspólna kamera sama się przesuwa i odda
 2. Przy pierwszym otwarciu poczekaj, aż Unity zaimportuje pakiety (kilka minut).
 3. Projekt sam się konfiguruje: tworzy scenę `Assets/Scenes/PotatoesParty.unity`, włącza URP i dodaje scenę do Build Settings.
    Gdyby coś nie zadziałało, użyj menu **Potatoes Party → Napraw ustawienia projektu**.
-4. Wciśnij **Play**. Cała gra (grafika, interfejs, muzyka) buduje się z kodu, więc działa w każdej scenie.
+4. Unity doinstaluje **Cinemachine 3, VFX Graph i Input System** i poprosi o restart (Input System: tryb „Both”) – zrestartuj.
+5. Wciśnij **Play**. Cała gra (grafika, interfejs, muzyka) buduje się z kodu, więc działa w każdej scenie.
+6. Opcjonalnie: zbuduj 5 grafów VFX według [docs/Rework.md](docs/Rework.md#9-vfx-graph--schematy-grafów). Do tego czasu efekty robią cząsteczki zapasowe.
 
 ## Sterowanie
 
@@ -19,6 +25,9 @@ Ziemniaczki rywalizują w minigrach, a wspólna kamera sama się przesuwa i odda
 | Klawiatura 1 | WASD | Spacja | Lewy Shift lub E |
 | Klawiatura 2 | Strzałki | Prawy Ctrl | Prawy Shift lub Enter |
 | Pad (dowolna liczba) | Lewa gałka / krzyżak | A | X, B lub prawy spust |
+
+Przytrzymaj skok, żeby skoczyć wyżej (krótkie wciśnięcie = niski skok). Zryw działa też raz w powietrzu.
+Pady wibrują przy trafieniach, lądowaniach i wybuchach.
 
 ESC, P albo Start na padzie: pauza. W lobby dołączasz, wciskając skok lub akcję na swoim urządzeniu. Brakuje ludzi? Dodaj boty.
 
@@ -68,7 +77,12 @@ Kod jest przygotowany na tryb online: wystarczy dopisać implementację `ILobbyS
 
 ```
 Assets/Scripts/Runtime/Core       – GameManager (przebieg gry), dane, sterowanie, lobby
-Assets/Scripts/Runtime/Gameplay   – ziemniaczek gracza, skórki (PotatoSkins), efekty (Fx, SkinFx), kamera, oświetlenie
+Assets/Scripts/Runtime/Gameplay   – ziemniak (Potato: fasada, PotatoMotor: ruch, PotatoBody: animacja, PotatoSurface: skóra), skórki, efekty
+Assets/Scripts/Runtime/Feel       – game feel: TimeDirector (hit stop, time dilation), Impulses, Rumble, Feel
+Assets/Scripts/Runtime/CameraRig  – kamera filmowa Cinemachine 3 (CinematicCamera, CameraDynamics)
+Assets/Scripts/Runtime/Rendering  – oświetlenie (Lighting) i post-processing (PostFx)
+Assets/Scripts/Runtime/VFX        – efekty VFX Graph (Vfx) z zapasem na ParticleSystem
+Assets/Shaders/PotatoHero         – shader skóry ziemniaka v2 (SSS, kurz, błoto, woda, uszkodzenia)
 Assets/Scripts/Runtime/Minigames  – 12 minigier i ich wspólna baza
 Assets/Scripts/Runtime/Maps       – 12 map (scenerii), plac imprezowy z Garderobą (Hub), roślinność i horyzont (Scatter)
 Assets/Scripts/Runtime/UI         – menu, lobby, HUD, ekran ładowania

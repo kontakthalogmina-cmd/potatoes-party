@@ -64,6 +64,12 @@ namespace PotatoParty
             return scheme == 0 ? Down(Key.Space) : (Down(Key.RightCtrl) || Down(Key.Numpad0));
         }
 
+        /// <summary>Skok przytrzymany (wysokość skoku zależy od czasu przytrzymania).</summary>
+        public static bool KeyboardJumpHeld(int scheme)
+        {
+            return scheme == 0 ? Pressed(Key.Space) : (Pressed(Key.RightCtrl) || Pressed(Key.Numpad0));
+        }
+
         public static bool KeyboardActionDown(int scheme)
         {
             return scheme == 0 ? (Down(Key.LeftShift) || Down(Key.E)) : (Down(Key.RightShift) || Down(Key.Enter) || Down(Key.NumpadEnter));
@@ -118,6 +124,12 @@ namespace PotatoParty
             return pad != null && pad.buttonSouth.wasPressedThisFrame;
         }
 
+        public static bool GamepadJumpHeld(int id)
+        {
+            var pad = Pad(id);
+            return pad != null && pad.buttonSouth.isPressed;
+        }
+
         public static bool GamepadActionDown(int id)
         {
             var pad = Pad(id);
@@ -154,6 +166,11 @@ namespace PotatoParty
             return scheme == 0 ? Input.GetKeyDown(KeyCode.Space) : (Input.GetKeyDown(KeyCode.RightControl) || Input.GetKeyDown(KeyCode.Keypad0));
         }
 
+        public static bool KeyboardJumpHeld(int scheme)
+        {
+            return scheme == 0 ? Input.GetKey(KeyCode.Space) : (Input.GetKey(KeyCode.RightControl) || Input.GetKey(KeyCode.Keypad0));
+        }
+
         public static bool KeyboardActionDown(int scheme)
         {
             return scheme == 0
@@ -171,6 +188,7 @@ namespace PotatoParty
         public static bool GamepadConnected(int id) { return false; }
         public static Vector2 GamepadMove(int id) { return Vector2.zero; }
         public static bool GamepadJumpDown(int id) { return false; }
+        public static bool GamepadJumpHeld(int id) { return false; }
         public static bool GamepadActionDown(int id) { return false; }
         public static string GamepadName(int id, int index) { return "Pad " + (index + 1); }
 #endif

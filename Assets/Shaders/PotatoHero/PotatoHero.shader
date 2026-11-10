@@ -1,20 +1,23 @@
-// Potatoes Party – Shader Bohatera Ziemniaka ("Aksamitna Bulwa")
-// URP 17 (Unity 6), Forward / Forward+. Logika i strojenie: docs/ArtDirection.md, sekcja "Krok 3".
+// Potatoes Party – Shader Bohatera Ziemniaka v2 ("Aksamitna Bulwa", rework)
+// URP 17 (Unity 6), Forward / Forward+. SSS na gaussach sferycznych, warstwy: kurz, błoto, woda, szron,
+// zwęglenie, siniaki, rozcięcia. Strojenie i schemat Shader Graph: docs/Rework.md, sekcja "Shader ziemniaka".
 Shader "PotatoParty/PotatoHero"
 {
     Properties
     {
-        [MainColor] _BaseColor ("Kolor gracza (skórka)", Color) = (0.95, 0.75, 0.45, 1)
+        [MainColor] _BaseColor ("Kolor skórki", Color) = (0.95, 0.75, 0.45, 1)
         [MainTexture] _BaseMap ("Tekstura (opcjonalna)", 2D) = "white" {}
-        _FleshColor ("Kolor miąższu (SSS)", Color) = (1.0, 0.72, 0.38, 1)
+        _FleshColor ("Kolor miąższu (SSS, rany)", Color) = (1.0, 0.72, 0.38, 1)
         _Smoothness ("Gładkość", Range(0, 1)) = 0.55
         _SpecularStrength ("Siła odblasku", Range(0, 2)) = 0.8
-        _SpecularBand ("Stylizacja odblasku (0 GGX, 1 twardy)", Range(0, 1)) = 0.35
+        _SpecularBand ("Stylizacja odblasku (0 GGX, 1 twardy)", Range(0, 1)) = 0.2
 
         [Header(Skorka proceduralna)]
         _SpeckleAmount ("Oczka i piegi", Range(0, 1)) = 0.6
         _SpeckleScale ("Skala oczek", Float) = 3.2
-        _BumpStrength ("Relief", Range(0, 0.1)) = 0.025
+        _LenticelAmount ("Przetchlinki (jasne kreski)", Range(0, 1)) = 0.35
+        _NetAmount ("Siateczka korkowa (russet)", Range(0, 1)) = 0
+        _BumpStrength ("Relief", Range(0, 0.1)) = 0.03
         _GroundOcclusion ("Przyciemnienie dołu", Range(0, 1)) = 0.35
 
         [Header(Skorka gracza wzor i metal)]
@@ -25,13 +28,16 @@ Shader "PotatoParty/PotatoHero"
         _PatternScale ("Skala wzoru", Float) = 1
         _Metallic ("Metaliczność", Range(0, 1)) = 0
 
-        [Header(Miekka tkanka)]
-        _WrapDiffuse ("Owinięcie światła (wrap)", Range(0, 1)) = 0.5
-        _ScatterStrength ("Rozpraszanie (fake SSS)", Range(0, 1)) = 0.7
+        [Header(Subsurface Scattering)]
+        _ScatterStrength ("Rozpraszanie (SSS)", Range(0, 1)) = 0.75
+        _ScatterRadius ("Zasięg dyfuzji RGB (a = skala)", Vector) = (1.0, 0.42, 0.22, 0.9)
+        _CurvatureScale ("Krzywizna -> zasięg", Range(0, 1)) = 0.16
+        _WrapDiffuse ("Owinięcie terminatora", Range(0, 1)) = 0.25
         _TransDistortion ("Translucencja: zniekształcenie", Range(0, 1)) = 0.35
         _TransPower ("Translucencja: wykładnik", Range(1, 16)) = 4
-        _TransScale ("Translucencja: siła", Range(0, 4)) = 1.2
+        _TransScale ("Translucencja: siła", Range(0, 4)) = 1.4
         _Thickness ("Grubość (1 = tułów)", Range(0, 1)) = 0.6
+        _Absorption ("Pochłanianie Beer-Lambert RGB", Vector) = (0.35, 1.1, 2.4, 0)
 
         [Header(Aksamit sheen)]
         _SheenColor ("Kolor meszku", Color) = (0.35, 0.30, 0.25, 1)
@@ -40,16 +46,20 @@ Shader "PotatoParty/PotatoHero"
         [Header(Rim gameplayowy)]
         [HDR] _RimColor ("Kolor konturu", Color) = (1.0, 0.96, 0.88, 1)
         _RimPower ("Ostrość konturu", Range(0.5, 8)) = 3.5
-        _RimStrength ("Siła konturu", Range(0, 3)) = 0.7
+        _RimStrength ("Siła konturu", Range(0, 3)) = 0.6
         _RimPlayerTint ("Kolor gracza w konturze", Range(0, 1)) = 0.45
         _RimLightAlign ("Kontur tylko pod słońce", Range(0, 1)) = 0.6
 
-        [Header(Maski interaktywne MaterialPropertyBlock)]
+        [Header(Srodowisko PotatoSurface)]
         _MaskScale ("Skala plam", Float) = 1.0
-        _MaskReceive ("Przyjmowanie masek", Range(0, 1)) = 1.0
+        _MaskReceive ("Przyjmowanie warstw", Range(0, 1)) = 1.0
+        _DustAmount ("Kurz", Range(0, 1)) = 0
+        _DustColor ("Kolor kurzu", Color) = (0.86, 0.78, 0.64, 1)
         _MudAmount ("Błoto", Range(0, 1)) = 0
         _MudDir ("Błoto: kierunek (xyz) i siła (w)", Vector) = (0, -1, 0, 0)
         _MudColor ("Kolor błota", Color) = (0.27, 0.18, 0.11, 1)
+        _WetAmount ("Woda", Range(0, 1)) = 0
+        _WetDrops ("Gęstość kropel", Range(0, 1)) = 0.5
         _FrostAmount ("Szron", Range(0, 1)) = 0
         _FrostColor ("Kolor szronu", Color) = (0.82, 0.93, 1.0, 1)
         _BurnAmount ("Zwęglenie", Range(0, 1)) = 0
@@ -57,6 +67,17 @@ Shader "PotatoParty/PotatoHero"
         _BurnDir ("Wybuch: kierunek (xyz) i siła (w)", Vector) = (0, 0, 1, 0)
         [HDR] _EmberColor ("Kolor żaru", Color) = (6.0, 1.6, 0.3, 1)
         _FlashAmount ("Błysk trafienia", Range(0, 1)) = 0
+
+        [Header(Uszkodzenia)]
+        _BruiseAmount ("Siniaki", Range(0, 1)) = 0
+        _BruiseDir ("Siniak: kierunek (xyz) i siła (w)", Vector) = (0, 0, 1, 0)
+        _BruiseColor ("Kolor siniaka", Color) = (0.36, 0.17, 0.24, 1)
+        _CutAmount ("Rozcięcia", Range(0, 1)) = 0
+        _CutDir ("Rana: kierunek (xyz) i siła (w)", Vector) = (0, 0, 1, 0)
+        _CutSeed ("Rana: przesunięcie (xyz), gęstość (w)", Vector) = (0, 0, 0, 1)
+        _ImpactDentScale ("Głębokość wgniecenia", Range(0, 0.5)) = 0.16
+        [HideInInspector] _ImpactCenter ("", Vector) = (0, 0, 0, 1)
+        [HideInInspector] _ImpactDir ("", Vector) = (0, 0, 1, 0)
 
         [HideInInspector] _PP_Root0 ("", Vector) = (1, 0, 0, 0)
         [HideInInspector] _PP_Root1 ("", Vector) = (0, 1, 0, 0)
@@ -127,7 +148,7 @@ Shader "PotatoParty/PotatoHero"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 ShadowVaryings o;
-                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float3 positionWS = PP_ApplyImpact(TransformObjectToWorld(input.positionOS.xyz));
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
                 #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                     float3 lightDir = normalize(_LightPosition - positionWS);
@@ -169,7 +190,7 @@ Shader "PotatoParty/PotatoHero"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 DepthVaryings o;
-                o.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(PP_ApplyImpact(TransformObjectToWorld(input.positionOS.xyz)));
                 return o;
             }
 
@@ -201,7 +222,7 @@ Shader "PotatoParty/PotatoHero"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 DNVaryings o;
-                o.positionCS = TransformObjectToHClip(input.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(PP_ApplyImpact(TransformObjectToWorld(input.positionOS.xyz)));
                 o.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 return o;
             }

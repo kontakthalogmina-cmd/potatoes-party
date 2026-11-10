@@ -137,6 +137,14 @@ namespace PotatoParty
             {
                 case PotatoPart.Body:
                     m.SetFloat("_Thickness", 0.65f);
+                    if (skin == null || skin.Metallic < 0.5f)
+                    {
+                        // prawdziwa skórka: oczka, przetchlinki, siateczka korkowa i mocniejszy relief
+                        m.SetFloat("_SpeckleAmount", Mathf.Max(skin != null ? skin.Speckle : 0.6f, 0.85f));
+                        m.SetFloat("_LenticelAmount", 0.75f);
+                        m.SetFloat("_NetAmount", 0.4f);
+                        m.SetFloat("_BumpStrength", 0.065f);
+                    }
                     break;
                 case PotatoPart.Belly:
                     // brzuszek nachodzi na tułów: słabszy kontur, żeby nie rysował "pierścienia" na ciele

@@ -8,6 +8,42 @@ namespace PotatoParty
     /// Wspólna baza minigier: arena, spadanie, eliminacje, punktacja, ranking i pomoc dla botów.
     /// Każda minigra dopisuje tylko swoje zasady.
     /// </summary>
+    /// <summary>Widok "żywi gracze" bez alokacji (zobacz <see cref="Minigame.Alive"/>).</summary>
+    public struct AliveSet : IEnumerable<Potato>
+    {
+        readonly List<Potato> list;
+        public AliveSet(List<Potato> list) { this.list = list; }
+
+        public Enumerator GetEnumerator() { return new Enumerator(list); }
+        IEnumerator<Potato> IEnumerable<Potato>.GetEnumerator() { return GetEnumerator(); }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { return GetEnumerator(); }
+
+        public struct Enumerator : IEnumerator<Potato>
+        {
+            readonly List<Potato> list;
+            int index;
+
+            public Enumerator(List<Potato> list) { this.list = list; index = -1; }
+
+            public Potato Current { get { return list[index]; } }
+            object System.Collections.IEnumerator.Current { get { return Current; } }
+
+            public bool MoveNext()
+            {
+                if (list == null) return false;
+                while (++index < list.Count)
+                {
+                    var p = list[index];
+                    if (p != null && !p.Eliminated) return true;
+                }
+                return false;
+            }
+
+            public void Reset() { index = -1; }
+            public void Dispose() { }
+        }
+    }
+
     public abstract class Minigame
     {
         public abstract string Title { get; }
@@ -41,8 +77,26 @@ namespace PotatoParty
         readonly Dictionary<Potato, Vector3> botGoal = new Dictionary<Potato, Vector3>();
         readonly Dictionary<Potato, float> botGoalTime = new Dictionary<Potato, float>();
 
-        public IEnumerable<Potato> Alive { get { return Players.Where(p => p != null && !p.Eliminated); } }
-        public int AliveCount { get { return Players.Count(p => p != null && !p.Eliminated); } }
+        /// <summary>
+        /// Żywi gracze. Struktura z własnym enumeratorem: `foreach (var p in Alive)` nie alokuje
+        /// (wcześniej LINQ Where = enumerator + domknięcie na stercie przy każdym wywołaniu, kilka razy na klatkę).
+        /// Nadal działa z LINQ (OrderBy, ElementAt, new List(Alive)) tam, gdzie to rzadkie.
+        /// </summary>
+        public AliveSet Alive { get { return new AliveSet(Players); } }
+
+        public int AliveCount
+        {
+            get
+            {
+                int n = 0;
+                for (int i = 0; i < Players.Count; i++)
+                {
+                    var p = Players[i];
+                    if (p != null && !p.Eliminated) n++;
+                }
+                return n;
+            }
+        }
 
         public void Setup(GameManager gm, MapTheme map, Transform root)
         {
@@ -63,6 +117,7 @@ namespace PotatoParty
                 p.CanDash = true;
                 p.CanJump = true;
                 p.SpeedMultiplier = 1f;
+                p.KnockMultiplier = 1f;
                 ConfigurePlayer(p);
             }
         }
@@ -164,6 +219,7 @@ namespace PotatoParty
             p.Eliminated = true;
             EliminatedOrder.Add(p);
             AudioManager.Play(fell ? Sfx.Fall : Sfx.Explosion, 0.8f);
+            Feel.Knockout(p);
             p.SetHidden(true);
             GM.Hud.Toast(p.Slot.Name + (message ?? (fell ? " odpada!" : " wylatuje w powietrze!")), p.Color);
             OnEliminated(p);
@@ -281,21 +337,14 @@ namespace PotatoParty
         {
             switch (type)
             {
-                case 0: return new HotPotatoGame();
-                case 1: return new GoldenPotatoesGame();
-                case 2: return new SumoGame();
-                case 3: return new CrackingIceGame();
-                case 4: return new ObstacleRaceGame();
-                case 5: return new SpinningBeamGame();
-                case 6: return new FallingPotsGame();
-                case 7: return new PotatoBallGame();
-                case 8: return new PaintersGame();
-                case 9: return new KingOfTheHillGame();
-                case 10: return new HarvesterTagGame();
-                default: return new MazeGame();
+                // 4 nowe gry na mapie "Ogród Babci" (stare 12 usunięte po playteście)
+                case 0: return new DeepFryGame();
+                case 1: return new TiltPanGame();
+                case 2: return new MoleGame();
+                default: return new TowerGame();
             }
         }
 
-        public const int Count = 12;
+        public const int Count = 4;
     }
 }

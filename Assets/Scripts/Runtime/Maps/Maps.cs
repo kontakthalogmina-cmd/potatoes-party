@@ -69,7 +69,7 @@ namespace PotatoParty
                 "#9CCBE8", "#6FAE52", "#5F9C45", "#7A5A3C", "#E2463F", "#3F5F35", "#5E9E48", "#4F8A3D", 1f, -7f, "#FFF0D0", "#90A88C");
             themes[(int)MapId.Cornfield] = T(MapId.Cornfield, "Pole Kukurydzy", "Wysoka kukurydza i strach na wróble",
                 "#FFD9A0", "#C9A45C", "#B8934F", "#8A6A3E", "#E2463F", "#7A5B35", "#D9B866", "#C8A757", 1f, -7f, "#FFE2B0", "#C2A98A", 1.15f);
-            themes[(int)MapId.Garden] = T(MapId.Garden, "Ogrodowy Labirynt", "Żywopłot, kwiaty i fontanna",
+            themes[(int)MapId.Garden] = T(MapId.Garden, "Ogród Babci", "Grządka, szopa, szklarnia i tarasy",
                 "#B5E3FF", "#D9CDB0", "#CFC2A3", "#3F8F3A", "#FF8FB1", "#6B8F4E", "#7CC85E", "#6BB84F");
 
             // Kolor poświaty i ciemnego tła (używane przez opcjonalną, nocną oprawę)
@@ -120,7 +120,7 @@ namespace PotatoParty
     {
         public static void ApplyAtmosphere(MapTheme t, Camera cam, Light sun)
         {
-            Look.Daylight(t, cam, sun);
+            Lighting.Daylight(t, cam, sun);
         }
 
         /// <summary>Płaski dysk (walec) z dokładnym colliderem siatki zamiast kapsuły.</summary>

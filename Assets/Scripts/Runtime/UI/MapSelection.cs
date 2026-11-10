@@ -177,7 +177,7 @@ namespace PotatoParty
                 var brt = (RectTransform)b.transform;
                 UIKit.Place(brt, new Vector2(0.5f, 0.5f), new Vector2((i - 1) * 560f, -20f), new Vector2(500, 560));
                 cards[i] = b.GetComponent<Image>();
-                Destroy(b.GetComponent<UIHover>()); // skalowaniem kart steruje wybór
+                Destroy(b.GetComponent<JuicyButton>()); // skalowaniem kart steruje wybór
                 var name = UIKit.Label(brt, theme.Name, 48, Color.white, TextAnchor.UpperCenter, FontStyle.Bold);
                 UIKit.Stretch(name.rectTransform, Vector2.zero, Vector2.one, new Vector2(24, 24), new Vector2(-24, -40));
                 UIKit.Outline(name, UIKit.Dark, 3f);
