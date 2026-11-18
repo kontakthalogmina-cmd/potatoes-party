@@ -19,7 +19,7 @@ namespace PotatoParty.EditorTools
         const string ScenePath = "Assets/Scenes/PotatoesParty.unity";
         const string SettingsDir = "Assets/Settings";
         const string ResourcesDir = "Assets/Resources/PotatoParty";
-        const string DoneKey = "PotatoParty.SetupDone.v8";
+        const string DoneKey = "PotatoParty.SetupDone.v9";
 
         static ProjectSetup()
         {
@@ -54,6 +54,7 @@ namespace PotatoParty.EditorTools
                 EnsureFolder(ResourcesDir + "/VFX");
 
                 EnsureUrp();
+                EnsureShaderCompilation();
                 EnsureMaterials();
                 EnsureInputHandling();
                 EnsureScene();
@@ -93,8 +94,33 @@ namespace PotatoParty.EditorTools
             AssetDatabase.CreateFolder(parent, Path.GetFileName(path));
         }
 
+        /// <summary>
+        /// GŁÓWNA przyczyna "sekundowego mignięcia ekranu na jednolity kolor" w edytorze.
+        /// Z włączoną asynchroniczną kompilacją shaderów edytor rysuje każdy jeszcze nieskompilowany wariant
+        /// zastępczym, jednolitym (cyjanowym) shaderem. Gdy nowy wariant dotyczy całego obrazu (Uber post-process
+        /// z nowym słowem kluczowym: zniekształcenie obiektywu przy ciosie, pierwszy motion blur, pierwsza
+        /// eksplozja z emisją, pierwszy cień światła dodatkowego), przez ~1 s jednolity jest cały kadr.
+        /// Wariant kompiluje się raz na sesję edytora – stąd "losowość". Wyłączenie = krótka przycinka zamiast
+        /// mignięcia; w zbudowanej grze zjawisko nie występuje (warianty są skompilowane w buildzie).
+        /// </summary>
+        static void EnsureShaderCompilation()
+        {
+            if (!EditorSettings.asyncShaderCompilation) return;
+            EditorSettings.asyncShaderCompilation = false;
+            Debug.Log("[Potatoes Party] Wyłączono asynchroniczną kompilację shaderów w edytorze (koniec cyjanowych mignięć ekranu).");
+        }
+
         static void EnsureUrp()
         {
+            // Każdy poziom jakości może mieć WŁASNY asset URP (szablon Unity 6: PC_RPAsset / Mobile_RPAsset).
+            // Wcześniej strojony był tylko domyślny – po zmianie jakości w ustawieniach gra przełączała się
+            // na nieskonfigurowany asset (bez PostProcessData, inne MSAA/HDR), a sama zmiana assetu przebudowuje
+            // cały potok renderowania w trakcie gry.
+            for (int i = 0; i < QualitySettings.names.Length; i++)
+            {
+                var perLevel = QualitySettings.GetRenderPipelineAssetAt(i) as UniversalRenderPipelineAsset;
+                if (perLevel != null) TuneUrp(perLevel);
+            }
             if (GraphicsSettings.defaultRenderPipeline != null)
             {
                 TuneUrp(GraphicsSettings.defaultRenderPipeline as UniversalRenderPipelineAsset);

@@ -59,6 +59,8 @@ namespace PotatoParty
         public CinemachineBrain Brain { get; private set; }
         public CinemachineCamera Virtual { get; private set; }
         public CameraDynamics Dynamics { get; private set; }
+        /// <summary>Ukrywa geometrię, w którą wjechała kamera (patrz <see cref="CameraClearance"/>).</summary>
+        public CameraClearance Clearance { get; private set; }
         public bool Showcase { get; set; }
 
         /// <summary>Punkt, na który patrzy kadr (DoF ostrzy tutaj).</summary>
@@ -137,6 +139,8 @@ namespace PotatoParty
             cc.Dynamics = dyn;
             cc.composer = comp;
             cc.rig = rig;
+            cc.Clearance = camGo.AddComponent<CameraClearance>();
+            cc.Clearance.Cam = cam;
             dyn.Owner = cc;
             return cc;
         }

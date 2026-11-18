@@ -31,6 +31,17 @@ namespace PotatoParty
         public static float BloomClamp = 8f;    // maks. jasność piksela wchodzącego do bloomu
         public static float FlashEV = 0.5f;     // błysk wybuchu: maks. +0.5 EV (było +1.2)
         public static float BaseExposure = -0.35f;
+        /// <summary>
+        /// Wartości "spoczynkowe" efektów, które wcześniej przełączały się między 0 a &gt; 0.
+        /// URP włącza/wyłącza wtedy słowo kluczowe w shaderze Uber (_DISTORTION) albo cały przebieg (motion blur).
+        /// Pierwsze użycie nowego wariantu w edytorze = asynchroniczna kompilacja = przez ~1 s cały obraz rysowany
+        /// zastępczym, jednolitym (cyjanowym) shaderem. Stała, niewidoczna wartość trzyma jeden wariant cały czas.
+        /// </summary>
+        public const float LensRest = -0.001f, MotionRest = 0.0001f;
+        /// <summary>Przysłona, gdy w kadrze nie ma żywych graczy (np. wszyscy usmażeni) – zamiast f/1.2 rozmywającego cały kadr.</summary>
+        public static float NoPlayersAperture = 5.6f;
+        /// <summary>Przesunięcie kamery [m] między dwoma renderami uznawane za cięcie (oprócz prędkości).</summary>
+        public static float CutDistance = 2.5f, CutAngle = 25f;
         /// <summary>Jeśli ustawiony – ostrość trzyma się tego obiektu (menu: bohater na pierwszym planie).</summary>
         public static Transform FocusTarget;
         /// <summary>Filmowy nastrój: przesunięcia nakładane na gradację każdej mapy (0 = stary jasny wygląd).</summary>
@@ -116,7 +127,7 @@ namespace PotatoParty
             motion = profile.Add<MotionBlur>(true);
             motion.mode.Override(MotionBlurMode.CameraOnly);
             motion.quality.Override(MotionBlurQuality.Medium);
-            motion.intensity.Override(0f);
+            motion.intensity.Override(MotionRest);
             motion.clamp.Override(0.05f);
 
             vignette = profile.Add<Vignette>(true);
@@ -129,7 +140,7 @@ namespace PotatoParty
             chroma.intensity.Override(chromaBase); // obiektyw: delikatne rozszczepienie na brzegach
 
             lens = profile.Add<LensDistortion>(true);
-            lens.intensity.Override(0f);
+            lens.intensity.Override(LensRest);
             lens.scale.Override(1f);
 
             grain = profile.Add<FilmGrain>(true);
@@ -237,7 +248,10 @@ namespace PotatoParty
 
                 float f = (showcase ? ShowcaseFocalLength : GameFocalLength) / 1000f;
                 float needN = showcase ? ShowcaseAperture : MinAperture;
-                if (!showcase && gm.Potatoes.Count > 0)
+                int alive = 0;
+                if (!showcase) for (int i = 0; i < gm.Potatoes.Count; i++) if (gm.Potatoes[i] != null && !gm.Potatoes[i].Eliminated) alive++;
+                if (!showcase && alive == 0) needN = NoPlayersAperture;
+                if (!showcase && alive > 0)
                 {
                     // krążek rozmycia na sensorze 24 mm: c = f²·|S2−S1| / (N·S2·(S1−f)) → N = f²·|S2−S1| / (c·S2·(S1−f))
                     float cMax = MaxPlayerBlurPx / Mathf.Max(240f, cam.pixelHeight) * 0.024f;
@@ -258,7 +272,7 @@ namespace PotatoParty
 
                 // cięcie kamery (teleport, SnapNow, zmiana ujęcia) = prędkość > 25 m/s → bez bluru, inaczej cały kadr się rozmazuje
                 float camSpeed = rig.CameraSpeed;
-                motion.intensity.Override(camSpeed > CutSpeed ? 0f : Mathf.Clamp(camSpeed * MotionBlurPerSpeed, 0f, MotionBlurMax));
+                motion.intensity.Override(camSpeed > CutSpeed || cutFrames > 0 ? 0f : Mathf.Clamp(MotionRest + camSpeed * MotionBlurPerSpeed, MotionRest, MotionBlurMax));
             }
 
             // --- puls i błysk
@@ -266,7 +280,8 @@ namespace PotatoParty
             flash.Step(0f, 2.4f, 1f, dt);
             float p01 = punch.Value;
             chroma.intensity.Override(Mathf.Clamp01(chromaBase + Mathf.Max(0f, p01) * 0.55f));
-            lens.intensity.Override(Mathf.Clamp(-p01 * 0.22f, -0.3f, 0.12f));
+            lens.intensity.Override(Mathf.Clamp(LensRest - p01 * 0.22f, -0.3f, 0.12f));
+            if (Mathf.Abs(lens.intensity.value) < 0.0005f) lens.intensity.Override(LensRest); // nigdy dokładnie 0 (sprężyna przechodzi przez zero)
             vignette.intensity.Override(vignetteBase + Mathf.Max(0f, p01) * 0.12f);
             color.postExposure.Override(exposure + Mathf.Clamp01(flash.Value) * FlashEV);
         }
@@ -297,8 +312,54 @@ namespace PotatoParty
                 motion.active, motion.intensity.value, chroma.intensity.value, lens.intensity.value, vignette.intensity.value);
         }
 
+        // ---------------- cięcie kamery: wykrywane tuż przed renderem ----------------
+
+        static int cutFrames;
+        static Vector3 lastRenderPos;
+        static Quaternion lastRenderRot = Quaternion.identity;
+        static bool hasLastRender;
+
+        /// <summary>
+        /// Wywoływane przez URP przed renderem kamery – już PO Cinemachine (LateUpdate), więc widzimy
+        /// ostateczną pozycję tej klatki. Wcześniej cięcie wykrywał LateUpdate kamery (przed mózgiem Cinemachine)
+        /// na podstawie wygładzonej prędkości: klatka cięcia renderowała się z pełnym motion blurem liczonym
+        /// z poprzedniej macierzy widoku → cały ekran rozmazany w jedną smugę. Teraz: blur 0 w tej i 2 kolejnych
+        /// klatkach, ostrość i przysłona DoF ustawiane natychmiast (bez 0.3 s mydła po zmianie ujęcia).
+        /// </summary>
+        static void OnBeginCamera(ScriptableRenderContext ctx, Camera cam)
+        {
+            if (motion == null) return;
+            var gm = GameManager.Instance;
+            var rig = gm != null ? gm.Camera : null;
+            if (rig == null || cam != rig.Cam) return;
+            var t = cam.transform;
+            bool cut = !hasLastRender
+                || (t.position - lastRenderPos).sqrMagnitude > CutDistance * CutDistance
+                || Quaternion.Angle(t.rotation, lastRenderRot) > CutAngle;
+            lastRenderPos = t.position;
+            lastRenderRot = t.rotation;
+            hasLastRender = true;
+            if (cut)
+            {
+                cutFrames = 3;
+                ScreenGlitchProbe.Note("kamera: ciecie przed renderem");
+                Vector3 fp = FocusTarget != null ? FocusTarget.position : rig.FocusPoint;
+                focus = Mathf.Max(1f, Vector3.Dot(fp - t.position, t.forward));
+                dof.focusDistance.Override(focus);
+                aperture = Mathf.Max(aperture, showcase ? ShowcaseAperture : NoPlayersAperture);
+                dof.aperture.Override(aperture);
+            }
+            if (cutFrames > 0)
+            {
+                cutFrames--;
+                motion.intensity.Override(0f);
+            }
+        }
+
         sealed class Runner : MonoBehaviour
         {
+            void OnEnable() { RenderPipelineManager.beginCameraRendering += OnBeginCamera; }
+            void OnDisable() { RenderPipelineManager.beginCameraRendering -= OnBeginCamera; }
             void LateUpdate() { Tick(Mathf.Min(Time.unscaledDeltaTime, 0.1f)); }
         }
     }

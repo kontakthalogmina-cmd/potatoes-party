@@ -333,18 +333,18 @@ namespace PotatoParty
             return false;
         }
 
+        /// <summary>
+        /// Rejestr minigier. Po czystce (v5) jest tylko jedna: <see cref="PanickingPanManager"/> – "Wielka Patelnia Babci".
+        /// Nowa gra = nowy case + Count++ (GameManager sam układa z nich playlistę meczu).
+        /// </summary>
         public static Minigame Create(int type)
         {
             switch (type)
             {
-                // 4 nowe gry na mapie "Ogród Babci" (stare 12 usunięte po playteście)
-                case 0: return new DeepFryGame();
-                case 1: return new TiltPanGame();
-                case 2: return new MoleGame();
-                default: return new TowerGame();
+                default: return new PanickingPanManager();
             }
         }
 
-        public const int Count = 4;
+        public const int Count = 1;
     }
 }

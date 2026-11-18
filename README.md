@@ -36,23 +36,11 @@ ESC, P albo Start na padzie: pauza. W lobby dołączasz, wciskając skok lub akc
 - **Menu główne:** Dołącz do gry, Stwórz grę, Ustawienia, Wyjdź z gry.
 - **Lobby:** nazwa, lobby **otwarte lub prywatne** (z kodem), **tryb gry**, do 6 graczy (ludzie + boty). Po scenie lobby można już biegać.
 - **Dwa tryby:**
-  - *Szybka impreza* — 5 losowych minigier z 12,
-  - *Wielka impreza* — 10 losowych minigier z 12.
-  Minigry w meczu się nie powtarzają.
+  - *Szybka impreza* — 5 rund,
+  - *Wielka impreza* — 10 rund.
+  Gdy rund jest więcej niż minigier, minigry się powtarzają (bez tej samej dwa razy z rzędu, jeśli jest z czego wybierać).
 - **Ekran ładowania** przed każdą minigrą (nazwa, mapa, pasek postępu, porada).
-- **12 minigier, każda z własną mapą:**
-  - *Gorący Ziemniak* (Ziemniaczana Farma) — przekaż bombę dotykiem, zanim wybuchnie.
-  - *Złote Ziemniaki* (Sad) — zbieraj złoto, zrywem wybijasz je rywalom.
-  - *Ziemniaczane Sumo* (tratwa na morzu) — zepchnij innych z kurczącej się platformy.
-  - *Pękający Lód* (Lodowa Kraina) — płyty pękają pod stopami.
-  - *Tor Przeszkód* (Kuchnia) — 6 odcinków: fałszywe drzwi, kruszące się kamienie, wałki, kładka z wahadłami, taśmociąg i toczące się kule.
-  - *Obrotowa Belka* (Wulkan) — przeskakuj kręcącą się belkę, coraz szybszą.
-  - *Deszcz Garnków* (Stołówka) — uciekaj z czerwonych kół, gdzie spadają garnki.
-  - *Ziemniaczana Piłka* (Stadion) — drużyny Czerwoni i Niebiescy, wbij gola.
-  - *Malarze* (Plac zabaw) — maluj pola na swój kolor, najwięcej pól wygrywa.
-  - *Król Polany* (Las) — stój sam w złotym kręgu, który co chwilę się przenosi.
-  - *Ucieczka przed Kombajnem* (Pole kukurydzy) — kombajn goni najbliższego.
-  - *Labirynt w Ogrodzie* — za każdym razem inny labirynt, pierwszy przy wyjściu wygrywa.
+- **Minigra: Wielka Patelnia Babci** (Wielka Kuchnia) — ogromna żeliwna patelnia z garbem, topniejącym masłem, plackami i boczkiem. Ręka babci leje gorący olej (losowo, w gracza, linią, pierścieniem, „deszczem”, w kryjówki), a z butelki kapie. Nad każdym ziemniakiem **Sizzle Meter**: rośnie na oleju i pod strumieniem, przy 100% ziemniak zamienia się w frytki i odpada. Trudność (częstotliwość, wielkość plam, tempo smażenia) rośnie płynnie przez całą rundę. Ostatni na patelni wygrywa. Skok nad olejem nie parzy, zryw spycha rywali w tłuszcz.
 - **Wygląd:** jasny, słoneczny i schludny: niebo z gradientem, miękkie cienie, lekki bloom, woda pod areną, chmurki i kilka balonów w tle. Czcionki: Titan One (tytuły, przyciski) i Varela Round (zwykły tekst), licencja OFL.
 - **Styl „Aksamitna Bulwa”:** ziemniaki mają własny shader (`Assets/Shaders/PotatoHero`): aksamitny meszek na krawędziach, ciepły miąższ prześwitujący pod światło (fake SSS), kontur, który zawsze odcina postać od tła, oraz błoto, szron i przypalenia na skórce sterowane z minigier. Opis stylu i logiki shadera: [`docs/ArtDirection.md`](docs/ArtDirection.md).
 - **Ziemniaczki z charakterem:** gładkie, błyszczące ciało, wielkie oczy, mruganie, miny (przerażone „O” przy upadku), rączki w rękawiczkach, tupiące nóżki, kiełek na czubku i pierścień w kolorze gracza pod stopami.
@@ -62,7 +50,7 @@ ESC, P albo Start na padzie: pauza. W lobby dołączasz, wciskając skok lub akc
 - **Duża plansza:** menu, lobby i podium dzieją się na dużym placu imprezowym (mozaika, girlandy żarówek, latarnie, fontanna, rabaty kwiatów, Garderoba z manekinami). Mapy mają gęstą trawę, kwiaty, kamienie i zaspy, a na horyzoncie wzgórza, szczyty lub dymiący wulkan.
 - **Światło i obraz:** trzy światła (słońce, wypełnienie, kontra), 4 kaskady cieni, SSAO, sonda odbić, osobny grading kolorów dla każdej mapy (bloom, white balance, split toning, winieta), rozmycie tła w menu.
 - **Interfejs:** białe karty, granatowy tekst, wypukłe kolorowe przyciski i sprężyste animacje okienek. W grze: nazwa minigry u góry, karty graczy na dole i okrągły licznik czasu w rogu.
-- **Więcej zabawy:** po mocnym uderzeniu ziemniak robi fikołka i widzi gwiazdki, lider nosi koronę, a w każdej minigrze jest jakaś niespodzianka (fałszywe złoto, fałszywe drzwi, gumowe kaczki, zawracająca belka, kombajn, który zmienia ofiarę…).
+- **Więcej zabawy:** po mocnym uderzeniu ziemniak robi fikołka i widzi gwiazdki, a przypalony ziemniak brązowieje i dymi.
 - **Finał:** ostatnia minigra meczu daje podwójne punkty.
 - **Punktacja:** 3 / 2 / 1 punkt za miejsca 1–3 w każdej minigrze, na końcu podium i zwycięzca.
 - **Muzyka i dźwięki:** radosne melodie i efekty generowane w grze (bez plików audio).
@@ -79,11 +67,11 @@ Kod jest przygotowany na tryb online: wystarczy dopisać implementację `ILobbyS
 Assets/Scripts/Runtime/Core       – GameManager (przebieg gry), dane, sterowanie, lobby
 Assets/Scripts/Runtime/Gameplay   – ziemniak (Potato: fasada, PotatoMotor: ruch, PotatoBody: animacja, PotatoSurface: skóra), skórki, efekty
 Assets/Scripts/Runtime/Feel       – game feel: TimeDirector (hit stop, time dilation), Impulses, Rumble, Feel
-Assets/Scripts/Runtime/CameraRig  – kamera filmowa Cinemachine 3 (CinematicCamera, CameraDynamics)
+Assets/Scripts/Runtime/CameraRig  – kamera filmowa Cinemachine 3 (CinematicCamera, CameraDynamics, CameraClearance)
 Assets/Scripts/Runtime/Rendering  – oświetlenie (Lighting) i post-processing (PostFx)
 Assets/Scripts/Runtime/VFX        – efekty VFX Graph (Vfx) z zapasem na ParticleSystem
 Assets/Shaders/PotatoHero         – shader skóry ziemniaka v2 (SSS, kurz, błoto, woda, uszkodzenia)
-Assets/Scripts/Runtime/Minigames  – 12 minigier i ich wspólna baza
+Assets/Scripts/Runtime/Minigames  – baza minigier i "Wielka Patelnia Babci" (PanickingPanManager)
 Assets/Scripts/Runtime/Maps       – 12 map (scenerii), plac imprezowy z Garderobą (Hub), roślinność i horyzont (Scatter)
 Assets/Scripts/Runtime/UI         – menu, lobby, HUD, ekran ładowania
 Assets/Scripts/Runtime/Audio      – syntezator muzyki i efektów

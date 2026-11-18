@@ -110,7 +110,10 @@ namespace PotatoParty
             var sb = new StringBuilder(1024);
             var ci = System.Globalization.CultureInfo.InvariantCulture;
             sb.Append("[Potatoes Party] GLITCH: jednolity ekran RGB(").Append(mean.r.ToString("F2", ci)).Append(", ")
-              .Append(mean.g.ToString("F2", ci)).Append(", ").Append(mean.b.ToString("F2", ci)).Append(") rozrzut ").Append(spread.ToString("F3", ci)).Append('\n');
+              .Append(mean.g.ToString("F2", ci)).Append(", ").Append(mean.b.ToString("F2", ci)).Append(") rozrzut ").Append(spread.ToString("F3", ci));
+            if (mean.r < 0.3f && mean.g > 0.6f && mean.b > 0.6f)
+                sb.Append("  ← CYJAN = zastępczy shader edytora (kompilacja asynchroniczna; ProjectSetup ją wyłącza)");
+            sb.Append('\n');
             sb.Append("stan=").Append(gm.State).Append(" gra=").Append(gm.Current != null ? gm.Current.Title : "-")
               .Append(" timeScale=").Append(Time.timeScale.ToString("F3", ci)).Append(" hitStop=").Append(TimeDirector.InHitStop)
               .Append(" fixedDt=").Append(Time.fixedDeltaTime.ToString("F4", ci)).Append('\n');
@@ -130,6 +133,7 @@ namespace PotatoParty
                 // czy kamera siedzi w geometrii (najczęstsza przyczyna jednolitego koloru)
                 var inside = Physics.OverlapSphere(t.position, 0.25f, ~0, QueryTriggerInteraction.Ignore);
                 sb.Append(" wGeometrii=").Append(inside.Length > 0 ? inside[0].name : "nie");
+                if (rig.Clearance != null) sb.Append(" ukryteBryly=").Append(rig.Clearance.HiddenCount);
                 RaycastHit hit;
                 if (Physics.Raycast(t.position, t.forward, out hit, 1.5f, ~0, QueryTriggerInteraction.Ignore))
                     sb.Append(" przedObiektywem=").Append(hit.collider.name).Append('@').Append(hit.distance.ToString("F2", ci));

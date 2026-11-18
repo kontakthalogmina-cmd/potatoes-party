@@ -206,6 +206,17 @@ namespace PotatoParty
                 var col = go.GetComponent<Collider>();
                 if (col != null) { col.enabled = false; Object.Destroy(col); }
             }
+            else if (type == PrimitiveType.Cylinder)
+            {
+                // Pułapka Unity: walec-prymityw ma CapsuleCollider. Spłaszczony walec (np. 3.6 × 0.7 × 3.6) dostaje
+                // kapsułę o promieniu 1.8 i wysokości 1.4 → w praktyce KULĘ wystającą ponad i poza walec.
+                // Ziemniak "stoi w powietrzu" i ześlizguje się po niewidzialnej kopule przy krawędzi. Podmiana na
+                // collider siatki = kształt dokładnie taki, jak widać.
+                var cap = go.GetComponent<CapsuleCollider>();
+                if (cap != null) { cap.enabled = false; Object.Destroy(cap); }
+                var mc = go.AddComponent<MeshCollider>();
+                mc.sharedMesh = go.GetComponent<MeshFilter>().sharedMesh;
+            }
             return go;
         }
 
@@ -530,15 +541,18 @@ namespace PotatoParty
 #if UNITY_6000_0_OR_NEWER
             var m = new PhysicsMaterial("Potato");
             m.frictionCombine = PhysicsMaterialCombine.Minimum;
-            m.bounceCombine = PhysicsMaterialCombine.Maximum;
+            m.bounceCombine = PhysicsMaterialCombine.Minimum;
 #else
             var m = new PhysicMaterial("Potato");
             m.frictionCombine = PhysicMaterialCombine.Minimum;
-            m.bounceCombine = PhysicMaterialCombine.Maximum;
+            m.bounceCombine = PhysicMaterialCombine.Minimum;
 #endif
             m.dynamicFriction = 0f;
             m.staticFriction = 0f;
-            m.bounciness = 0.2f;
+            // było 0.2 + Maximum: każde lądowanie i otarcie o krawędź dawało mikro-odbicie (> 2 m/s progu PhysX),
+            // ziemniak podskakiwał na krawędziach, a lądowanie odpalało się kilka razy (squash, kurz, wibracja).
+            // Odrzut graczy robi PotatoMotor.ApplyKnock – fizyczna sprężystość nie jest potrzebna.
+            m.bounciness = 0f;
             c.sharedMaterial = m;
         }
     }
