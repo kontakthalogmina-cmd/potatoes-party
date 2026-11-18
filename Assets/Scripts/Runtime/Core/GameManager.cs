@@ -69,6 +69,7 @@ namespace PotatoParty
 
             TimeDirector.Ensure();
             Time.fixedDeltaTime = TimeDirector.BaseFixedDelta;
+            ConfigurePhysics();
             Camera = CinematicCamera.Create();
             Camera.transform.SetParent(transform, false);
 
@@ -96,6 +97,27 @@ namespace PotatoParty
             GoToMainMenu();
         }
 
+        /// <summary>
+        /// Globalne ustawienia fizyki pod szybkie, lekkie ziemniaki (100 Hz, zryw 21 m/s):
+        /// <list type="bullet">
+        /// <item><b>maximumDeltaTime 0.1</b> (domyślnie 0.333): po przycięciu klatki (ładowanie, kompilacja shadera)
+        ///       Unity nadrabiało do 33 kroków fizyki naraz – ziemniaki "teleportowały się" przez krawędzie.</item>
+        /// <item><b>maxDepenetrationVelocity 6</b> (domyślnie 10): wypchnięcie z penetracji na krawędzi/szwie nie
+        ///       wystrzeliwuje już ziemniaka w górę.</item>
+        /// <item>8/2 iteracje solvera: stabilne stosy ziemniaków i kontakty z ruchomymi elementami.</item>
+        /// <item>Kontakt 1 cm: mniejszy "margines" = brak zawisania na krawędziach przed faktycznym dotykiem.</item>
+        /// </list>
+        /// </summary>
+        static void ConfigurePhysics()
+        {
+            Time.maximumDeltaTime = 0.1f;
+            Physics.defaultMaxDepenetrationVelocity = 6f;
+            Physics.defaultSolverIterations = 8;
+            Physics.defaultSolverVelocityIterations = 2;
+            Physics.defaultContactOffset = 0.01f;
+            Physics.bounceThreshold = 2f;
+        }
+
         // =====================================================================
         //  Świat
         // =====================================================================
@@ -112,9 +134,16 @@ namespace PotatoParty
             PotatoShreds.Clear();
             menuStage = false;
             if (MenuDirector.Instance != null) MenuDirector.Instance.Release(true);
-            if (world != null) Destroy(world.gameObject);
+            if (world != null)
+            {
+                // Destroy działa dopiero na końcu klatki: bez SetActive(false) stary i nowy świat renderują się
+                // (i zderzają) razem przez jedną klatkę – mignięcie nałożonej geometrii przy każdej zmianie mapy.
+                world.gameObject.SetActive(false);
+                Destroy(world.gameObject);
+            }
             world = new GameObject("Swiat").transform;
             world.SetParent(transform, false);
+            if (Camera != null && Camera.Clearance != null) Camera.Clearance.Root = world;
         }
 
         /// <summary>Tryb pokazowy (menu, lobby, podium): niska kamera z wolnym ruchem i płytka głębia ostrości.</summary>
@@ -517,23 +546,33 @@ namespace PotatoParty
             Loading.Hide();
         }
 
-        /// <summary>Losuje kolejność minigier na cały mecz: bez powtórek, ze wszystkich 12.</summary>
+        /// <summary>
+        /// Losuje kolejność minigier na cały mecz: worek bez powtórek, a gdy rund jest więcej niż gier,
+        /// worek jest losowany od nowa (bez tej samej gry dwa razy z rzędu, o ile gier jest więcej niż jedna).
+        /// </summary>
         void BuildPlaylist(int count)
         {
             bag.Clear();
-            for (int i = 0; i < Minigame.Count; i++) bag.Add(i);
-            for (int i = bag.Count - 1; i > 0; i--)
+            var pool = new List<int>(Minigame.Count);
+            int prev = lastMinigame;
+            while (bag.Count < count)
             {
-                int j = Random.Range(0, i + 1);
-                int t = bag[i]; bag[i] = bag[j]; bag[j] = t;
+                pool.Clear();
+                for (int i = 0; i < Minigame.Count; i++) pool.Add(i);
+                for (int i = pool.Count - 1; i > 0; i--)
+                {
+                    int j = Random.Range(0, i + 1);
+                    int t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+                }
+                if (pool.Count > 1 && pool[0] == prev) { int t = pool[0]; pool[0] = pool[1]; pool[1] = t; }
+                for (int i = 0; i < pool.Count && bag.Count < count; i++) bag.Add(pool[i]);
+                prev = bag[bag.Count - 1];
             }
-            if (bag.Count > 1 && bag[0] == lastMinigame) { int t = bag[0]; bag[0] = bag[1]; bag[1] = t; }
-            if (bag.Count > count) bag.RemoveRange(count, bag.Count - count);
         }
 
         IEnumerator MatchRoutine()
         {
-            int total = Mathf.Min(Settings.Rounds, Minigame.Count);
+            int total = Mathf.Max(1, Settings.Rounds);
             BuildPlaylist(total);
             for (Round = 1; Round <= total; Round++)
             {

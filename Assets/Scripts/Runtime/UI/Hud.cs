@@ -16,6 +16,17 @@ namespace PotatoParty
         readonly Dictionary<PlayerSlot, Chip> chips = new Dictionary<PlayerSlot, Chip>();
         readonly Dictionary<Potato, Text> labels = new Dictionary<Potato, Text>();
         readonly List<ToastItem> toasts = new List<ToastItem>();
+        readonly Dictionary<Potato, Meter> meters = new Dictionary<Potato, Meter>();
+
+        /// <summary>Pasek nad głową gracza (np. Sizzle Meter w "Wielkiej Patelni Babci").</summary>
+        class Meter
+        {
+            public RectTransform Root, Fill;
+            public Image FillImage, Frame;
+            public Text Value;
+            public float Target, Shown, Pulse;
+            public string Caption;
+        }
 
         class Chip { public Image Bg, Portrait, Inner; public Color SkinColor; public Text Name, Points, Stat; }
         class ToastItem { public Text Text; public float Age; }
@@ -194,6 +205,12 @@ namespace PotatoParty
                 if (labels[d] != null) Destroy(labels[d].gameObject);
                 labels.Remove(d);
             }
+            if (meters.Count > 0)
+            {
+                dead.Clear();
+                foreach (var kv in meters) if (kv.Key == null || !potatoes.Contains(kv.Key)) dead.Add(kv.Key);
+                foreach (var d in dead) RemoveMeter(d);
+            }
             foreach (var p in potatoes)
             {
                 if (p == null) continue;
@@ -208,11 +225,90 @@ namespace PotatoParty
                 Vector3 sp = cam.WorldToScreenPoint(p.HeadAnchor.position + Vector3.up * 0.7f);
                 bool visible = !p.Eliminated && sp.z > 0;
                 t.gameObject.SetActive(visible);
+                Meter m;
+                bool hasMeter = meters.TryGetValue(p, out m);
+                if (hasMeter) m.Root.gameObject.SetActive(visible);
                 if (!visible) continue;
                 Vector2 local;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(labelRoot, sp, null, out local);
                 t.rectTransform.anchoredPosition = local;
+                if (hasMeter) PlaceMeter(m, local);
             }
+        }
+
+        // ---------------- paski nad głowami ----------------
+
+        /// <summary>
+        /// Ustawia pasek nad graczem (0..1). Tworzy go przy pierwszym wywołaniu. Kolor wypełnienia przechodzi
+        /// zieleń → żółć → czerwień; powyżej 75% pasek drży i pulsuje (presja!).
+        /// </summary>
+        public void SetMeter(Potato p, float value01, string caption = null)
+        {
+            if (p == null) return;
+            Meter m;
+            if (!meters.TryGetValue(p, out m))
+            {
+                m = MakeMeter(p);
+                meters[p] = m;
+            }
+            float v = Mathf.Clamp01(value01);
+            if (v > m.Target + 0.004f) m.Pulse = Mathf.Min(1f, m.Pulse + 0.25f);
+            m.Target = v;
+            if (caption != null) m.Caption = caption;
+        }
+
+        public void ClearMeters()
+        {
+            foreach (var kv in meters) if (kv.Value != null && kv.Value.Root != null) Destroy(kv.Value.Root.gameObject);
+            meters.Clear();
+        }
+
+        void RemoveMeter(Potato p)
+        {
+            Meter m;
+            if (!meters.TryGetValue(p, out m)) return;
+            if (m.Root != null) Destroy(m.Root.gameObject);
+            meters.Remove(p);
+        }
+
+        Meter MakeMeter(Potato p)
+        {
+            var m = new Meter();
+            m.Root = UIKit.Rect("Pasek " + p.Slot.Name, labelRoot);
+            m.Root.sizeDelta = new Vector2(132, 20);
+            m.Frame = UIKit.Panel(m.Root, "Rama", new Color(0.12f, 0.08f, 0.16f, 0.88f));
+            UIKit.Fill(m.Frame.rectTransform);
+            var inner = UIKit.Rect("Wnetrze", m.Root);
+            UIKit.Stretch(inner, Vector2.zero, Vector2.one, new Vector2(3, 3), new Vector2(-3, -3));
+            m.FillImage = UIKit.Panel(inner, "Wypelnienie", Shapes.Hex("#6BD66B"));
+            m.Fill = m.FillImage.rectTransform;
+            UIKit.Stretch(m.Fill, Vector2.zero, new Vector2(0f, 1f), Vector2.zero, Vector2.zero);
+            m.Value = UIKit.Label(m.Root, "", 16, Color.white, TextAnchor.MiddleCenter, FontStyle.Bold);
+            UIKit.Fill(m.Value.rectTransform);
+            UIKit.Outline(m.Value, new Color(0.1f, 0.05f, 0.1f, 0.9f), 1.5f);
+            return m;
+        }
+
+        static readonly Color MeterCool = new Color(0.42f, 0.84f, 0.42f), MeterWarm = new Color(1f, 0.82f, 0.25f), MeterHot = new Color(1f, 0.33f, 0.2f);
+
+        void PlaceMeter(Meter m, Vector2 labelPos)
+        {
+            float dt = Time.unscaledDeltaTime;
+            // szybko w górę (czytelny skok zagrożenia), wolniej w dół
+            m.Shown = Mathf.MoveTowards(m.Shown, m.Target, dt * (m.Target > m.Shown ? 3f : 1.2f));
+            m.Pulse = Mathf.MoveTowards(m.Pulse, 0f, dt * 2.5f);
+            float v = m.Shown;
+            m.Fill.anchorMax = new Vector2(v, 1f);
+            m.FillImage.color = v < 0.5f ? Color.Lerp(MeterCool, MeterWarm, v * 2f) : Color.Lerp(MeterWarm, MeterHot, (v - 0.5f) * 2f);
+            float danger = Mathf.Clamp01((v - 0.75f) / 0.25f);
+            Vector2 jitter = danger > 0f
+                ? new Vector2(Mathf.Sin(Time.unscaledTime * 61f), Mathf.Cos(Time.unscaledTime * 47f)) * (1.5f + 2.5f * danger)
+                : Vector2.zero;
+            float s = 1f + 0.12f * m.Pulse + 0.06f * danger * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 14f));
+            m.Root.localScale = new Vector3(s, s, 1f);
+            m.Root.anchoredPosition = labelPos + new Vector2(0f, -30f) + jitter;
+            m.Frame.color = Color.Lerp(new Color(0.12f, 0.08f, 0.16f, 0.88f), new Color(0.55f, 0.08f, 0.05f, 0.95f), danger);
+            m.Value.text = (string.IsNullOrEmpty(m.Caption) ? "" : m.Caption + " ") + Mathf.RoundToInt(v * 100f) + "%";
         }
 
         public void HideLabels()
@@ -224,6 +320,7 @@ namespace PotatoParty
         {
             foreach (var kv in labels) if (kv.Value != null) Destroy(kv.Value.gameObject);
             labels.Clear();
+            ClearMeters();
         }
 
         public void Countdown(string text)

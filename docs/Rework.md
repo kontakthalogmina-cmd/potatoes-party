@@ -465,25 +465,57 @@ Po pierwszym teście wszystkie gałki przesunięte w stronę kina. Każdą możn
 - **Ujęcia Cinemachine**: 3 `CinemachineCamera` (Tytuł FOV 30, Graj FOV 34, Ustawienia FOV 40) + `ShotDrift` (dolly 14 s, "z ręki" 0.04 m / 0.35°) + `CinemachineImpulseListener` (gain 0.6). Przełączanie = aktywacja ostatniej kamery; blend EaseInOut 1.25 s. Menu → lobby: `Release()` oddaje kadr kamerze gry blendem, bez przebudowy świata.
 - **Juicy UI** (`UI/Juice.cs`): `JuicyButton` (sprężyny skali 7 Hz ζ 0.32, hover 1.10, press 0.90/1.06, kick przy kliknięciu, obrót ±6°, połysk 0.38 s, dźwięk Tick w gamie pentatonicznej, 6 iskier przy hover / 18 strzępków + pierścień przy kliknięciu), `UISparks` (pula 160 obrazków, grawitacja 1500 px/s²), `UIStagger` (kaskada 60 ms, ease-out-back 2.2), `BounceTitle` (litery na sprężynach 4.2 Hz, klik podrzuca), `Ease`.
 
-## v4 – nowe mini-gry i mapa "Ogród Babci"
+## v4 – mini-gry v4 (usunięte w v5)
 
-Usunięte w całości: Gorący Ziemniak, Złote Ziemniaki, Sumo, Pękający Lód, Tor Przeszkód, Wirująca Belka, Spadające Garnki, Ziemniaczana Piłka, Malarze, Król Wzgórza, Kombajn, Labirynt (12 plików). `Minigame.Count = 4`.
+Mini-gry v4 i mapa ogrodu zostały w całości usunięte w v5 (patrz niżej). Zostało ogólne API: `Potato.KnockMultiplier`, `Potato.ActionPressed`, `Potato.Landed` (statyczne – odpinane w `Cleanup`), `PotatoShreds.Chunk(i)`, kinematyczne ciała ignorują knock.
 
-**Mapa `Maps/GardenMap.cs`** – 56 × 56 m, 5 poziomów: grządka −1.5 m, trawnik 0, tarasy 2.5 m, dach szopy 6 m, zbiornik 9 m. Interakcje: 2 trampoliny (kompost → dach, dach → zbiornik), 4 grabie (ogłuszenie 1.2 s), 2 zraszacze (pchnięcie 6 m/s, rewers co 8 s), szyby szklarni (3 zrywy), most na dźwignię, taczki, miękka ziemia.
-
-| Gra | Rdzeń | Liczby |
-|---|---|---|
-| Wielkie Smażenie | zryw odrywa masę → strzępki → wiaderko → frytkownica | masa 0.3–1.4, cios −6…14%, wrzut 0.6 s / r 3.4 m, 10+ = ×1.5, prychnięcie co 30 s (r 4.2, wysypuje ½) |
-| Chybotliwa Patelnia | moment sił przechyla patelnię r 6.5 m nad ogniem | gain 0.16, sztywność 6, tłumienie 2.2, max 24°, katapulta od 2.6 m/s krawędzi, olej co 20 s (grip 0.35 / 5 s), klops ×3 masy, 3 życia |
-| Kretowisko | asymetria: krety pod ziemią vs ogrodnicy | wyskok r 1.4 m (+3/os.), tupnięcie ≥ 6 m/s w r 1.6 m (+2, kret −2), kopczyk > 4.5 m/s, role co 45 s ×3 |
-| Wieża Ziemniaków | żywe wieże jako odwrócone wahadło | niestabilność 1.4 + 0.45/piętro, gałka jeźdźca 4 rad/s², upadek > 35°, podstawa −15%/piętro, 1/2/4 pkt/s, stół ×2 |
-
-Nowe API: `Potato.KnockMultiplier`, `Potato.ActionPressed`, `Potato.Landed` (statyczne – odpinane w `Cleanup`), `PotatoShreds.Chunk(i)`, kinematyczne ciała ignorują knock.
-
-## v4.1 – błysk ekranu i maszyna stanów Smażenia
+## v4.1 – błysk ekranu
 
 - Logi Editor.log z sesji gry: 0 wyjątków runtime, 0 NaN → problem czysto renderingowy.
 - Bloom: clamp 40 → 8, scatter 0.72 → 0.6. Błysk ekspozycji: +1.2 EV → +0.5 EV. `Fx.FlashLight` ≤ 6 (było do 30).
 - Motion blur = 0, gdy kamera przesuwa się > 25 m/s (cięcie).
 - `Rendering/ScreenGlitchProbe.cs`: co 0.25 s próbka 16×9 gotowej klatki (ReadPixels po WaitForEndOfFrame; moduł ScreenCapture nie jest w manifeście); jednolity ekran (rozrzut < 2%) → log `[Potatoes Party] GLITCH` ze stanem kamery/efektów/10 zdarzeń + PNG w persistentDataPath. F6 bloom, F7 DoF, F8 motion blur, F9 cały post.
-- DeepFryGame: State pattern (Warmup 5 s → Frying → SpitWarn 2 s → Spitting 3 s → Frying; Finale w ostatnich 20 s: wrzut ×2, prychanie co 12 s). Złote strzępki ×5 na dachu szopy (6 m), zbiorniku (9 m) i tarasie co 15 s (finał co 8 s).
+
+## v5 – czysta karta: "Wielka Patelnia Babci" + naprawy migania i fizyki (2026-11-18)
+
+Usunięte: `DeepFryGame`, `TiltPanGame`, `MoleGame`, `TowerGame`, `MinigameParts` (części starych gier), `Maps/GardenMap.cs`. `Minigame.Count = 1`. Gdy rund jest więcej niż gier, `GameManager.BuildPlaylist` losuje worek od nowa (gra się powtarza).
+
+**`Minigames/PanickingPanManager.cs`** – patelnia r 13 m (jeden MeshCollider dna, ścianka 48 płyt odchylonych o 28° → normalna 0.47, nie da się na niej stać), garb 0.75 m, masło 0.9 → 0.2 m (topnieje), placki i boczek 0.18 m, jajka (dekor). Ręka babci: Idle → Aim (ostrzeżenie) → Pour → Lift; kapanie z butelki w Idle.
+
+| Parametr (start → max) | Wartość |
+|---|---|
+| Trudność d | 0.55·smoothstep(t/85 s) + 0.45·(t/85 s) |
+| Przerwa po wylaniu | 1.7 → 0.15 s |
+| Ostrzeżenie | 1.35 → 0.6 s |
+| Promień plamy | 1.5 → 3.1 m (×0.62 linia, ×0.5 pierścień, ×0.35–0.5 deszcz) |
+| Tempo smażenia | 0.38 → 1.05 /s (+1.8 /s pod strumieniem), stygnięcie 0.12 /s po 0.7 s |
+| Życie plamy | 8 → 14 s, potem 1.6 s stygnięcia; maks. 26 plam i 42% pokrycia |
+| Kapanie | 0 → 1.3 /s |
+| Wzory | Blob 1−0.6d · Targeted od d 0.10 · Line 0.22 · Refuge 0.30 · Ring 0.45 · Rain 0.65 (rampa 0.2) |
+
+Olej: grip ×0.6, prędkość ×1.12. Stopy > 0.45 m nad plamą = nie parzy. 100% = frytki i odpadnięcie. Ranking ocalałych: niższy licznik (co 5%). Sizzle Meter: `Hud.SetMeter / ClearMeters` (pasek pod imieniem, kolor zieleń → żółć → czerwień, drży od 75%).
+
+**Miganie ekranu – przyczyny i poprawki**
+
+| Przyczyna | Poprawka |
+|---|---|
+| Edytor: asynchroniczna kompilacja shaderów rysuje nowy wariant zastępczym jednolitym shaderem (cyjan) – przy nowym wariancie Uber post (zniekształcenie przy ciosie) lub pierwszym motion blurze cały kadr na ~1 s | `ProjectSetup.EnsureShaderCompilation`: `EditorSettings.asyncShaderCompilation = false` |
+| Efekty przełączane 0 ↔ > 0 (LensDistortion, MotionBlur) zmieniają słowo kluczowe/przebieg | wartości spoczynkowe `PostFx.LensRest = −0.001`, `MotionRest = 0.0001` – jeden wariant cały czas |
+| Klatka cięcia kamery z pełnym motion blurem (wykrywanie w LateUpdate przed Cinemachine, na wygładzonej prędkości) | `PostFx.OnBeginCamera` (beginCameraRendering, po Cinemachine): skok > 2.5 m lub > 25° = cięcie → blur 0 przez 3 klatki, DoF natychmiast |
+| Kamera wjeżdża w dekorację za areną (płaszczyzna bliska w bryle) | `CameraRig/CameraClearance.cs`: bryły zawierające kulę 0.9 m + near wokół obiektywu (test OBB) → tylko cień, histereza 0.35 m |
+| DoF bez żywych graczy → f/1.2 | `PostFx.NoPlayersAperture = 5.6` |
+| Stary i nowy świat przez 1 klatkę razem (Destroy na końcu klatki) | `ClearWorld`: `SetActive(false)` przed `Destroy` |
+| Poziomy jakości z własnym, nieskonfigurowanym assetem URP | `ProjectSetup.EnsureUrp` stroi asset każdego poziomu jakości |
+
+**Fizyka przy krawędziach – przyczyny i poprawki**
+
+| Przyczyna | Poprawka |
+|---|---|
+| Sfera wykrywania podłoża 0.38 m przy kapsule 0.5 m: na krawędzi "ziemia ↔ powietrze" co krok | sfera 0.45 m, start 5 cm wyżej |
+| Normalna SphereCast na krawędzi "zaokrąglona" (< 0.55) mimo płaskiego wierzchu | raycast 4 cm od punktu trafienia w stronę środka czyta normalną ściany |
+| Utrata ziemi na 1 krok na szwie | histereza: raycast w dół od środka |
+| Prędkość pionowa z wypchnięcia (szew, krawędź) przechodziła do następnego kroku | na ziemi `v.y` liczone z płaszczyzny podłoża (ruch wzdłuż normalnej) |
+| Sprężystość 0.2 (Maximum) – mikro-odbicia na krawędziach i wielokrotne lądowania | bounciness 0, combine Minimum |
+| `Shapes.Prim(Cylinder, keepCollider)` = CapsuleCollider → spłaszczony walec ma kolider-kulę | podmiana na MeshCollider |
+| Po przycięciu klatki do 33 kroków fizyki naraz | `Time.maximumDeltaTime = 0.1`, `maxDepenetrationVelocity 6`, solver 8/2, contactOffset 0.01 |
+

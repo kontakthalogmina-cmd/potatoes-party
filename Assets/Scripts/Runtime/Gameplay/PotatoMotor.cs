@@ -224,6 +224,14 @@ namespace PotatoParty
             if (jumping && JumpHeld && Mathf.Abs(v.y) < T.ApexHangSpeed) g *= T.ApexHangGravityMul;
             if (stunned && !Grounded && Dash == DashPhase.None) g = T.KnockGravity;
             if (Grounded && !jumping && v.y <= 0.5f) g += T.GroundStick;
+            if (Grounded && !jumping && !stunned && Dash != DashPhase.Active)
+            {
+                // Ruch po podłożu liczony wzdłuż jego płaszczyzny. Bez tego prędkość pionowa z poprzedniego kroku
+                // (wypchnięcie z penetracji na szwie, krawędzi czy rampie) przechodziła dalej i ziemniak
+                // "podskakiwał" na krawędziach. Teraz v.y wynika tylko ze spadku terenu pod nogami.
+                var n = GroundNormal;
+                v.y = n.y > 0.01f ? -(n.x * v.x + n.z * v.z) / n.y : 0f;
+            }
             v.y -= g * dt;
             if (v.y < -T.TerminalVelocity) v.y = -T.TerminalVelocity;
             if (jumping && v.y <= 0f && Grounded) jumping = false;
@@ -240,23 +248,73 @@ namespace PotatoParty
                 Facing = Vector3.RotateTowards(Facing, lookDir.normalized, T.TurnRate * Mathf.Deg2Rad * dt, 0f);
         }
 
+        /// <summary>
+        /// Wykrywanie podłoża odporne na krawędzie.
+        /// <list type="bullet">
+        /// <item>Sfera 0.45 m (było 0.38 przy kapsule 0.5): na krawędzi platformy kapsuła wciąż na niej leży,
+        ///       a stara, węższa sfera już jej nie widziała → "w powietrzu" ↔ "na ziemi" co krok fizyki = drganie.</item>
+        /// <item>SphereCast na krawędzi zwraca normalną "zaokrągloną" (od krawędzi do środka sfery), często &lt; 0.55,
+        ///       mimo że pod spodem jest płaska ściana. Dlatego przy stromej normalnej czytamy prawdziwą normalną
+        ///       ściany krótkim raycastem tuż obok punktu trafienia.</item>
+        /// <item>Start sfery 5 cm wyżej: sfera startująca wewnątrz collidera nie trafia w niego (PhysX ignoruje
+        ///       początkowe nakładanie), co po mocnym docisku gubiło ziemię na jedną klatkę.</item>
+        /// <item>Histereza: po utracie ziemi przez 1 krok (szew, krawędź) traktujemy ją jeszcze jako podłoże,
+        ///       jeśli raycast w dół od środka trafia płaską powierzchnię w zasięgu.</item>
+        /// </list>
+        /// </summary>
         void ProbeGround()
         {
             RaycastHit hit;
             int mask = ~(1 << Potato.Layer);
             bool was = Grounded;
             float vyBefore = Phys.GetVelocity(Body).y;
-            const float r = 0.38f;
-            bool hitGround = Physics.SphereCast(Body.position, r, Vector3.down, out hit, Potato.HalfHeight - r + 0.12f, mask, QueryTriggerInteraction.Ignore);
+            const float r = 0.45f, lift = 0.05f, skin = 0.12f;
+            var origin = Body.position + Vector3.up * lift;
+            bool hitGround = Physics.SphereCast(origin, r, Vector3.down, out hit, Potato.HalfHeight - r + lift + skin, mask, QueryTriggerInteraction.Ignore);
+            Vector3 normal = hitGround ? hit.normal : Vector3.up;
+            Collider col = hitGround ? hit.collider : null;
+            Vector3 point = hitGround ? hit.point : Body.position + Vector3.down * Potato.HalfHeight;
+
+            if (hitGround && normal.y <= MinGroundNormal)
+            {
+                // krawędź: prawdziwa normalna ściany, w którą trafiła sfera
+                RaycastHit face;
+                // 4 cm od punktu trafienia w stronę środka ziemniaka: jeśli środek jest nad platformą,
+                // trafiamy w jej płaski wierzch; jeśli wisi poza nią – w nic (i słusznie zsuwamy się).
+                var toCenter = new Vector3(Body.position.x - hit.point.x, 0f, Body.position.z - hit.point.z);
+                var probe = hit.point + Vector3.up * 0.1f + (toCenter.sqrMagnitude > 1e-6f ? toCenter.normalized * 0.04f : Vector3.zero);
+                if (Physics.Raycast(probe, Vector3.down, out face, 0.25f, mask, QueryTriggerInteraction.Ignore) && face.normal.y > MinGroundNormal)
+                {
+                    normal = face.normal;
+                    col = face.collider;
+                }
+            }
+            bool onGround = hitGround && normal.y > MinGroundNormal;
+
+            if (!onGround && was && !jumping)
+            {
+                RaycastHit down;
+                if (Physics.Raycast(Body.position, Vector3.down, out down, Potato.HalfHeight + skin, mask, QueryTriggerInteraction.Ignore) && down.normal.y > MinGroundNormal)
+                {
+                    onGround = true;
+                    normal = down.normal;
+                    col = down.collider;
+                    point = down.point;
+                }
+            }
+
             // wznoszący się skok nie "przykleja się" do krawędzi platformy, przez którą przelatuje
-            Grounded = hitGround && hit.normal.y > 0.55f && !(jumping && vyBefore > 0.5f);
-            GroundCollider = Grounded ? hit.collider : null;
-            GroundNormal = Grounded ? hit.normal : Vector3.up;
+            Grounded = onGround && !(jumping && vyBefore > 0.5f);
+            GroundCollider = Grounded ? col : null;
+            GroundNormal = Grounded ? normal : Vector3.up;
             if (Grounded && !was)
             {
                 jumping = false;
-                Owner.OnLand(-vyBefore, hit.point);
+                Owner.OnLand(-vyBefore, point);
             }
         }
+
+        /// <summary>cos 56.6° – stromsze powierzchnie to ściany (ześlizgujemy się).</summary>
+        public const float MinGroundNormal = 0.55f;
     }
 }
